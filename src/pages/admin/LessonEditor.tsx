@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-const API = 'http://localhost:3000';
+const API = '''';
 
 type BlockType = 'text' | 'quiz' | 'word_order' | 'fill_blank' | 'match_pairs' | 'true_false' | 'audio' | 'photo' | 'homework';
 

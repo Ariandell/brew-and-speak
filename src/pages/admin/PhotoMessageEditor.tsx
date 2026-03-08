@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 
-const API = 'http://localhost:3000';
+const API = '''';
 
 interface PhotoMessage {
     id: number;

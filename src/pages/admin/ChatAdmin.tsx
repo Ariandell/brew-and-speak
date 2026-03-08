@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 
-const API = 'http://localhost:3000';
+const API = '''';
 
 interface Conversation {
     user_id: string;

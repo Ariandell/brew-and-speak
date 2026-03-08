@@ -4,7 +4,7 @@ import { BottomNav } from '../components/ui/BottomNav';
 import { CircularProgress } from '../components/ui/CircularProgress';
 import { EnvelopeOverlay } from '../components/EnvelopeOverlay';
 
-const API = 'http://localhost:3000';
+const API = '''';
 const USER_ID = 'demo-user';
 
 const Home: React.FC = () => {
