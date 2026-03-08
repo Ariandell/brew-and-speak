@@ -402,19 +402,39 @@ app.post('/api/photo-messages/:id/viewed', async (req, res) => {
 
 // --- Chat Messages API ---
 
+async function getAdminUserId() {
+    let adminUser = await db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
+    if (!adminUser) {
+        const result = await db.prepare("INSERT INTO users (telegram_id, name, role) VALUES ('admin_system', 'Ольга (Викладач)', 'admin')").run();
+        return result.lastInsertRowid;
+    }
+    return adminUser.id;
+}
+
 // 1. Get chat history for a specific student (used by both student and admin)
 app.get('/api/chat/:userId', async (req, res) => {
     try {
-        const userId = req.params.userId;
-        const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(userId);
-        const internalId = user ? user.id : userId;
+        const telegramId = req.params.userId;
+        const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(telegramId);
+        const internalId = user ? user.id : telegramId;
+        const adminId = await getAdminUserId();
 
         const messages = await db.prepare(`
-            SELECT * FROM messages 
-            WHERE (sender_id = ? AND receiver_id = 'admin') 
-               OR (sender_id = 'admin' AND receiver_id = ?)
-            ORDER BY created_at ASC
-        `).all(internalId, internalId);
+            SELECT 
+                m.id, 
+                CASE WHEN m.sender_id = ? THEN 'admin' ELSE COALESCE(s.telegram_id, 'unknown') END as sender_id,
+                CASE WHEN m.receiver_id = ? THEN 'admin' ELSE COALESCE(r.telegram_id, 'unknown') END as receiver_id,
+                m.text, 
+                m.created_at, 
+                m.is_read
+            FROM messages m
+            LEFT JOIN users s ON m.sender_id = s.id
+            LEFT JOIN users r ON m.receiver_id = r.id
+            WHERE (m.sender_id = ? AND m.receiver_id = ?) 
+               OR (m.sender_id = ? AND m.receiver_id = ?)
+            ORDER BY m.created_at ASC
+        `).all(adminId, adminId, internalId, adminId, adminId, internalId);
+
         res.json(messages);
     } catch (error) {
         console.error('Failed to fetch chat messages:', error);
@@ -430,14 +450,16 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        let actualSenderId = sender_id;
-        if (sender_id !== 'admin') {
+        const adminId = await getAdminUserId();
+
+        let actualSenderId = sender_id === 'admin' ? adminId : null;
+        if (!actualSenderId) {
             const sender = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(sender_id);
             if (sender) actualSenderId = sender.id;
         }
 
-        let actualReceiverId = receiver_id;
-        if (receiver_id !== 'admin') {
+        let actualReceiverId = receiver_id === 'admin' ? adminId : null;
+        if (!actualReceiverId) {
             const receiver = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(receiver_id);
             if (receiver) actualReceiverId = receiver.id;
         }
@@ -457,29 +479,32 @@ app.post('/api/chat', async (req, res) => {
 // 3. Get admin conversations list (list of students who have chatted)
 app.get('/api/chat/admin/conversations', async (req, res) => {
     try {
+        const adminId = await getAdminUserId();
+
         // Group by user, get the last message time and count unread from them
         const conversations = await db.prepare(`
             SELECT 
-                t.user_id,
+                u.telegram_id as user_id,
                 MAX(t.created_at) as last_activity,
-                SUM(CASE WHEN t.sender_id != 'admin' AND t.is_read = 0 THEN 1 ELSE 0 END) as unread_count,
+                SUM(CASE WHEN t.sender_id != ? AND t.is_read = 0 THEN 1 ELSE 0 END) as unread_count,
                 (SELECT text FROM messages m2 
-                 WHERE (m2.sender_id = t.user_id AND m2.receiver_id = 'admin') 
-                    OR (m2.sender_id = 'admin' AND m2.receiver_id = t.user_id) 
+                 WHERE (m2.sender_id = t.internal_user_id AND m2.receiver_id = ?) 
+                    OR (m2.sender_id = ? AND m2.receiver_id = t.internal_user_id) 
                  ORDER BY created_at DESC LIMIT 1) as last_message
             FROM (
                 SELECT 
                     *,
                     CASE 
-                        WHEN sender_id = 'admin' THEN receiver_id 
+                        WHEN sender_id = ? THEN receiver_id 
                         ELSE sender_id 
-                    END as user_id
+                    END as internal_user_id
                 FROM messages
-                WHERE sender_id = 'admin' OR receiver_id = 'admin'
+                WHERE sender_id = ? OR receiver_id = ?
             ) t
-            GROUP BY t.user_id
+            JOIN users u ON t.internal_user_id = u.id
+            GROUP BY t.internal_user_id
             ORDER BY last_activity DESC
-        `).all();
+        `).all(adminId, adminId, adminId, adminId, adminId, adminId);
 
         res.json(conversations);
     } catch (error) {
@@ -492,15 +517,16 @@ app.get('/api/chat/admin/conversations', async (req, res) => {
 app.post('/api/chat/read', async (req, res) => {
     try {
         const { sender_id, receiver_id } = req.body;
+        const adminId = await getAdminUserId();
 
-        let actualSenderId = sender_id;
-        if (sender_id !== 'admin') {
+        let actualSenderId = sender_id === 'admin' ? adminId : null;
+        if (!actualSenderId) {
             const sender = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(sender_id);
             if (sender) actualSenderId = sender.id;
         }
 
-        let actualReceiverId = receiver_id;
-        if (receiver_id !== 'admin') {
+        let actualReceiverId = receiver_id === 'admin' ? adminId : null;
+        if (!actualReceiverId) {
             const receiver = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(receiver_id);
             if (receiver) actualReceiverId = receiver.id;
         }
