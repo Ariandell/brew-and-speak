@@ -107,6 +107,6 @@ export const useUserId = () => {
 export const useIsAdmin = () => {
     const { user } = useTelegram();
     if (!user) return true; // Default true in local dev without tg sdk (optional, but safe for testing)
-    const adminUsernames = ['Olia16', 'ARIANDEL21', 'demo_user'];
-    return adminUsernames.includes(user.username || '');
+    const adminUsernames = ['olia16', 'ariandel21', 'demo_user'];
+    return adminUsernames.includes((user.username || '').toLowerCase());
 };
