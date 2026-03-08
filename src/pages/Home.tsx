@@ -199,10 +199,6 @@ const Home: React.FC = () => {
                                                 transition: 'box-shadow 0.2s'
                                             }}>
 
-                                            {isUnlocked && (
-                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '5px', height: '100%', background: 'linear-gradient(to bottom, #4f46e5, #7c3aed)' }} />
-                                            )}
-
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div style={{ flex: 1, paddingRight: '1rem' }}>
                                                     <p style={{

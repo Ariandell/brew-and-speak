@@ -69,22 +69,9 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 }).catch(() => { });
             }
 
-            // Apply Telegram theme dynamically to root CSS variables
-            if (app.colorScheme === 'dark') {
-                const root = document.documentElement;
-                root.style.setProperty('--color-bg-main', app.themeParams.secondary_bg_color || '#000000');
-                root.style.setProperty('--color-surface', app.themeParams.bg_color || '#1c1c1d');
-                root.style.setProperty('--color-text-main', app.themeParams.text_color || '#ffffff');
-                root.style.setProperty('--color-text-muted', app.themeParams.hint_color || '#aaaaaa');
-                root.style.setProperty('--color-border', '#333333');
-            } else if (app.themeParams) {
-                const root = document.documentElement;
-                // Light mode overrides if provided by Telegram
-                if (app.themeParams.secondary_bg_color) root.style.setProperty('--color-bg-main', app.themeParams.secondary_bg_color);
-                if (app.themeParams.bg_color) root.style.setProperty('--color-surface', app.themeParams.bg_color);
-                if (app.themeParams.text_color) root.style.setProperty('--color-text-main', app.themeParams.text_color);
-                if (app.themeParams.hint_color) root.style.setProperty('--color-text-muted', app.themeParams.hint_color);
-            }
+            // Force light mode aesthetics as requested by user
+            // We consciously ignore Telegram's themeParams to maintain the white/light premium look.
+            // (Previously we injected root CSS variables like --color-bg-main here based on app.colorScheme)
 
         } else {
             console.warn('Telegram WebApp SDK not found.');
