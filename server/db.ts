@@ -111,6 +111,15 @@ async function initDB() {
     )
   `);
 
+    // Generic Assets (To combat Render ephemeral disk)
+    await dbRaw.execute(`
+    CREATE TABLE IF NOT EXISTS app_assets (
+      id TEXT PRIMARY KEY,
+      mime_type TEXT NOT NULL,
+      data TEXT NOT NULL
+    )
+  `);
+
     // Photo Messages (Scheduled photo deliveries from teacher)
     // Photo Message Views (Track which students have seen which messages)
     // Messages (Direct messages between users)

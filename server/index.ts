@@ -18,23 +18,46 @@ if (existsSync(distDir)) {
     app.use(express.static(distDir));
 }
 
-// --- File Uploads Config ---
+// --- File Uploads Config (Memory Storage for DB persistence) ---
 const uploadsDir = resolve(__dirname, 'uploads');
 if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
 
-const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
+const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } }); // 20MB max
 
-// Serve uploaded files
+// Serve legacy uploaded files from disk if they exist
 app.use('/uploads', express.static(uploadsDir));
 
-// --- Generic file upload (for lesson assets — NOT broadcast messages) ---
-app.post('/api/upload', upload.single('file'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    res.json({ url: `/uploads/${req.file.filename}` });
+// Serve assets directly from DB to avoid Render Ephemeral Disk wipe
+app.get('/api/assets/:id', async (req, res) => {
+    try {
+        const asset = await db.prepare('SELECT mime_type, data FROM app_assets WHERE id = ?').get(req.params.id);
+        if (!asset) return res.status(404).send('Not found');
+
+        const buffer = Buffer.from(asset.data as string, 'base64');
+        res.setHeader('Content-Type', asset.mime_type as string);
+        res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+        res.send(buffer);
+    } catch {
+        res.status(500).send('Error loading asset');
+    }
+});
+
+// --- Generic file upload (for lesson assets) ---
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+        const assetId = Date.now().toString() + '-' + Math.round(Math.random() * 10000);
+        const base64Data = req.file.buffer.toString('base64');
+
+        await db.prepare('INSERT INTO app_assets (id, mime_type, data) VALUES (?, ?, ?)')
+            .run(assetId, req.file.mimetype, base64Data);
+
+        res.json({ url: `/api/assets/${assetId}` });
+    } catch {
+        res.status(500).json({ error: 'Failed to upload file' });
+    }
 });
 
 // --- Student enrollment API ---
@@ -329,7 +352,14 @@ app.post('/api/photo-messages', upload.single('image'), async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
 
         const { caption } = req.body;
-        const imageUrl = `/uploads/${req.file.filename}`;
+
+        // Save to app_assets DB to persist across Render restarts
+        const assetId = Date.now().toString() + '-' + Math.round(Math.random() * 10000);
+        const base64Data = req.file.buffer.toString('base64');
+        await db.prepare('INSERT INTO app_assets (id, mime_type, data) VALUES (?, ?, ?)')
+            .run(assetId, req.file.mimetype, base64Data);
+
+        const imageUrl = `/api/assets/${assetId}`;
 
         const result = await db.prepare(
             'INSERT INTO photo_messages (image_url, caption, scheduled_at) VALUES (?, ?, datetime("now", "localtime"))'
