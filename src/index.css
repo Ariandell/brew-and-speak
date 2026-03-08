@@ -138,11 +138,24 @@ body {
 /* Telegram Mini App Wrapper */
 #root {
   width: 100vw;
+  max-width: 480px;
+  /* Mobile phone emulation for Telegram Desktop */
+  margin: 0 auto;
+  /* Center horizontally on large screens */
   min-height: 100vh;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  /* Subtle shadow for the edges */
   overflow-x: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
+}
+
+/* Force body background to be darker on desktop so the app frame stands out */
+@media screen and (min-width: 481px) {
+  body {
+    background-color: #e2e8f0;
+  }
 }
 
 /* Typography styles */
