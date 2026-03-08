@@ -18,6 +18,7 @@ import PhotoMessageEditor from './pages/admin/PhotoMessageEditor';
 import ChatAdmin from './pages/admin/ChatAdmin';
 import CourseList from './pages/admin/CourseList';
 import LessonList from './pages/admin/LessonList';
+import Statistics from './pages/admin/Statistics';
 
 function App() {
     return (
@@ -46,6 +47,7 @@ function App() {
             <Route path="/admin/lesson/:id" element={<LessonEditor />} />
             <Route path="/admin/photo-messages" element={<PhotoMessageEditor />} />
             <Route path="/admin/chat" element={<ChatAdmin />} />
+            <Route path="/admin/stats" element={<Statistics />} />
         </Routes>
     );
 }

@@ -574,6 +574,67 @@ app.get('/api/homework/lesson/:lessonId/user/:userId', async (req, res) => {
 
 
 
+// Admin: get all pending or graded homework across all courses
+app.get('/api/admin/homework', async (req, res) => {
+    try {
+        const { status } = req.query; // 'pending' or 'graded'
+        let query = `
+            SELECT h.*, l.title as lesson_title, u.first_name, u.last_name, u.username
+            FROM homework_submissions h
+            JOIN lessons l ON h.lesson_id = l.id
+            JOIN users u ON h.user_id = u.id
+        `;
+        let params: any[] = [];
+
+        if (status) {
+            query += ` WHERE h.status = ?`;
+            params.push(status);
+        }
+        query += ` ORDER BY h.submitted_at DESC`;
+
+        const submissions = await db.prepare(query).all(...params);
+        res.json(submissions);
+    } catch (error) {
+        console.error('Failed to fetch admin homework:', error);
+        res.status(500).json({ error: 'Failed to fetch homework' });
+    }
+});
+
+// Admin: Review and Grade a submission
+app.post('/api/admin/homework/:id/grade', async (req, res) => {
+    try {
+        const { grade, feedback } = req.body;
+        const id = req.params.id;
+
+        await db.prepare(
+            'UPDATE homework_submissions SET grade = ?, feedback = ?, status = ? WHERE id = ?'
+        ).run(grade !== undefined ? grade : null, feedback || '', 'graded', id);
+
+        // Optional: you could notify the student here via bot or message
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to grade homework:', error);
+        res.status(500).json({ error: 'Failed to grade homework' });
+    }
+});
+
+// Admin: General Dashboard Statistics
+app.get('/api/admin/statistics', async (req, res) => {
+    try {
+        const stats = {
+            totalUsers: (await db.prepare('SELECT COUNT(*) as c FROM users WHERE role != ?').get('admin'))?.c || 0,
+            completedLessons: (await db.prepare('SELECT COUNT(*) as c FROM user_progress WHERE status = ?').get('completed'))?.c || 0,
+            pendingHomework: (await db.prepare('SELECT COUNT(*) as c FROM homework_submissions WHERE status = ?').get('pending'))?.c || 0,
+            activeToday: (await db.prepare('SELECT COUNT(DISTINCT user_id) as c FROM user_progress WHERE date(completed_at) = date("now")').get())?.c || 0
+        };
+        res.json(stats);
+    } catch (error) {
+        console.error('Failed to fetch admin stats:', error);
+        res.status(500).json({ error: 'Failed to fetch statistics' });
+    }
+});
+
 // Get all courses
 app.get('/api/levels', async (_req, res) => {
     try {

@@ -14,7 +14,7 @@ const tiles: Tile[] = [
     { emoji: '📚', label: 'Курси', sublabel: 'Створити та редагувати', path: '/admin/courses', color: '#5b21b6', bg: 'linear-gradient(135deg, #ede9fe, #ddd6fe)' },
     { emoji: '💬', label: 'Чат', sublabel: 'Відповідати студентам', path: '/admin/chat', color: '#0e7490', bg: 'linear-gradient(135deg, #e0f7fa, #b2ebf2)' },
     { emoji: '📨', label: 'Розсилка', sublabel: 'Фото-повідомлення', path: '/admin/photo-messages', color: '#b45309', bg: 'linear-gradient(135deg, #fef3c7, #fde68a)' },
-    { emoji: '📊', label: 'Статистика', sublabel: 'Успішність студентів', path: '#', color: '#065f46', bg: 'linear-gradient(135deg, #d1fae5, #a7f3d0)' },
+    { emoji: '📊', label: 'Статистика', sublabel: 'Успішність студентам', path: '/admin/stats', color: '#065f46', bg: 'linear-gradient(135deg, #d1fae5, #a7f3d0)' },
 ];
 
 const Dashboard: React.FC = () => {

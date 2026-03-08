@@ -152,9 +152,21 @@ async function initDB() {
       file_url TEXT,
       file_name TEXT,
       submitted_at DATETIME DEFAULT (datetime('now', 'localtime')),
+      grade INTEGER,
+      feedback TEXT,
+      status TEXT DEFAULT 'pending',
       FOREIGN KEY (lesson_id) REFERENCES lessons (id)
     );
   `);
+
+    // Migration for homework_submissions to add grading columns if they don't exist
+    try {
+      await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN grade INTEGER");
+      await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN feedback TEXT");
+      await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN status TEXT DEFAULT 'pending'");
+    } catch (e) {
+      // Ignore if columns already exist
+    }
 
   } catch (error) {
     console.error('Failed to initialize Turso/SQLite DB:', error);
