@@ -1,20 +1,20 @@
-import Database from 'sqlite3';
+import { createClient } from '@libsql/client';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dbPath = resolve(__dirname, 'database.sqlite');
 
-// Init SQLite wrapper for promises
-const sqlite3 = Database.verbose();
-export const dbRaw = new sqlite3.Database(dbPath);
+// Connect to Turso if credentials exist, otherwise fallback to local SQLite file
+export const dbRaw = createClient({
+  url: process.env.TURSO_DATABASE_URL || `file:${dbPath}`,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
-// Create a simple synchronous-like wrapper for basic operations to match better-sqlite3 API style where possible, or use standard callbacks.
-// For MVP, we'll keep it simple:
-
-dbRaw.serialize(() => {
-  // Users
-  dbRaw.run(`
+async function initDB() {
+  try {
+    // Users
+    await dbRaw.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       telegram_id TEXT UNIQUE,
@@ -23,11 +23,11 @@ dbRaw.serialize(() => {
       enrolled_course_id INTEGER
     )
   `);
-  // Add column if it doesn't exist (migration for existing DBs)
-  dbRaw.run(`ALTER TABLE users ADD COLUMN enrolled_course_id INTEGER`, () => { });
+    // Add column if it doesn't exist (migration for existing DBs)
+    try { await dbRaw.execute(`ALTER TABLE users ADD COLUMN enrolled_course_id INTEGER`); } catch { }
 
-  // Levels (Map Zones)
-  dbRaw.run(`
+    // Levels (Map Zones)
+    await dbRaw.execute(`
     CREATE TABLE IF NOT EXISTS levels (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -36,8 +36,8 @@ dbRaw.serialize(() => {
     )
   `);
 
-  // Lessons (Nodes on Map)
-  dbRaw.run(`
+    // Lessons (Nodes on Map)
+    await dbRaw.execute(`
     CREATE TABLE IF NOT EXISTS lessons (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       level_id INTEGER,
@@ -48,8 +48,8 @@ dbRaw.serialize(() => {
     )
   `);
 
-  // Lesson Blocks (Content pieces)
-  dbRaw.run(`
+    // Lesson Blocks (Content pieces)
+    await dbRaw.execute(`
     CREATE TABLE IF NOT EXISTS lesson_blocks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       lesson_id INTEGER,
@@ -60,8 +60,8 @@ dbRaw.serialize(() => {
     )
   `);
 
-  // User Progress (Tracking completion and unlocks)
-  dbRaw.run(`
+    // User Progress (Tracking completion and unlocks)
+    await dbRaw.execute(`
     CREATE TABLE IF NOT EXISTS user_progress (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -77,12 +77,12 @@ dbRaw.serialize(() => {
       UNIQUE(user_id, lesson_id)
     )
   `);
-  // Add score and time_spent columns for existing DBs
-  dbRaw.run(`ALTER TABLE user_progress ADD COLUMN score INTEGER DEFAULT 10`, () => { });
-  dbRaw.run(`ALTER TABLE user_progress ADD COLUMN time_spent INTEGER DEFAULT 0`, () => { });
+    // Add score and time_spent columns for existing DBs
+    try { await dbRaw.execute(`ALTER TABLE user_progress ADD COLUMN score INTEGER DEFAULT 10`); } catch { }
+    try { await dbRaw.execute(`ALTER TABLE user_progress ADD COLUMN time_spent INTEGER DEFAULT 0`); } catch { }
 
-  // Flashcards (Vocabulary for lessons)
-  dbRaw.run(`
+    // Flashcards (Vocabulary for lessons)
+    await dbRaw.execute(`
     CREATE TABLE IF NOT EXISTS flashcards (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       lesson_id INTEGER,
@@ -93,8 +93,8 @@ dbRaw.serialize(() => {
     )
   `);
 
-  // SRS progress per user per flashcard (Anki-style spaced repetition)
-  dbRaw.run(`
+    // SRS progress per user per flashcard (Anki-style spaced repetition)
+    await dbRaw.execute(`
     CREATE TABLE IF NOT EXISTS user_flashcard_progress (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -111,10 +111,10 @@ dbRaw.serialize(() => {
     )
   `);
 
-  // Photo Messages (Scheduled photo deliveries from teacher)
-  // Photo Message Views (Track which students have seen which messages)
-  // Messages (Direct messages between users)
-  dbRaw.exec(`
+    // Photo Messages (Scheduled photo deliveries from teacher)
+    // Photo Message Views (Track which students have seen which messages)
+    // Messages (Direct messages between users)
+    await dbRaw.executeMultiple(`
     CREATE TABLE IF NOT EXISTS photo_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       image_url TEXT NOT NULL,
@@ -156,31 +156,32 @@ dbRaw.serialize(() => {
     );
   `);
 
-  console.log('✅ SQLite DB initialized');
-});
+  } catch (error) {
+    console.error('Failed to initialize Turso/SQLite DB:', error);
+  }
+}
+
+initDB();
 
 // Helper for synchronous-like reads mapped to better-sqlite3 style for the MVP
 export const db = {
   prepare: (sql: string) => {
     return {
-      all: (...params: any[]) => new Promise<any[]>((resolve, reject) => {
-        dbRaw.all(sql, params, (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        });
-      }),
-      get: (...params: any[]) => new Promise<any>((resolve, reject) => {
-        dbRaw.get(sql, params, (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-      }),
-      run: (...params: any[]) => new Promise<any>((resolve, reject) => {
-        dbRaw.run(sql, params, function (err) {
-          if (err) reject(err);
-          else resolve({ lastInsertRowid: this.lastID, changes: this.changes });
-        });
-      })
+      all: async (...params: any[]) => {
+        const result = await dbRaw.execute({ sql, args: params });
+        return result.rows;
+      },
+      get: async (...params: any[]) => {
+        const result = await dbRaw.execute({ sql, args: params });
+        return result.rows[0] || undefined;
+      },
+      run: async (...params: any[]) => {
+        const result = await dbRaw.execute({ sql, args: params });
+        return {
+          lastInsertRowid: result.lastInsertRowid?.toString(),
+          changes: result.rowsAffected
+        };
+      }
     };
   }
 };

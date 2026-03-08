@@ -191,7 +191,8 @@ app.get('/api/lessons/active/:userId', async (req, res) => {
         // 4. Check if locked by timer
         if (progress.status === 'locked' && progress.unlocks_at) {
             const now = new Date();
-            const unlockDate = new Date(progress.unlocks_at);
+            const unlocksAtRaw = progress.unlocks_at as string | number | Date;
+            const unlockDate = new Date(Number(unlocksAtRaw) || unlocksAtRaw);
 
             if (now >= unlockDate) {
                 // Time passed, auto-unlock
@@ -510,7 +511,7 @@ app.post('/api/levels', async (req, res) => {
         const { title, description } = req.body;
         if (!title) return res.status(400).json({ error: 'Title is required' });
         const maxOrder = await db.prepare('SELECT MAX("order") as max FROM levels').get();
-        const newOrder = (maxOrder?.max ?? 0) + 1;
+        const newOrder = Number(maxOrder?.max ?? 0) + 1;
         const result = await db.prepare('INSERT INTO levels (title, description, "order") VALUES (?, ?, ?)').run(title, description || '', newOrder);
         const created = await db.prepare('SELECT * FROM levels WHERE id = ?').get(result.lastInsertRowid);
         res.json(created);
@@ -548,7 +549,7 @@ app.post('/api/levels/:id/lessons', async (req, res) => {
         const levelId = req.params.id;
         if (!title) return res.status(400).json({ error: 'Title is required' });
         const maxOrder = await db.prepare('SELECT MAX("order") as max FROM lessons WHERE level_id = ?').get(levelId);
-        const newOrder = (maxOrder?.max ?? 0) + 1;
+        const newOrder = Number(maxOrder?.max ?? 0) + 1;
         const result = await db.prepare('INSERT INTO lessons (level_id, title, "order") VALUES (?, ?, ?)').run(levelId, title, newOrder);
         const created = await db.prepare('SELECT * FROM lessons WHERE id = ?').get(result.lastInsertRowid);
         res.json(created);
