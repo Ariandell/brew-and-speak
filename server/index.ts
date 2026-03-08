@@ -84,7 +84,7 @@ app.post('/api/users/:userId/enroll', async (req, res) => {
 // Get a student's enrolled course
 app.get('/api/users/:userId/enrollment', async (req, res) => {
     try {
-        const user = await db.prepare(`SELECT enrolled_course_id FROM users WHERE telegram_id = ?`).get(req.params.userId);
+        const user = await db.prepare(`SELECT id, enrolled_course_id FROM users WHERE telegram_id = ?`).get(req.params.userId);
         if (!user || !user.enrolled_course_id) return res.json({ courseId: null });
 
         const course = await db.prepare(`
@@ -98,7 +98,7 @@ app.get('/api/users/:userId/enrollment', async (req, res) => {
             SELECT COUNT(*) as count FROM user_progress p
             JOIN lessons l ON p.lesson_id = l.id
             WHERE p.user_id = ? AND l.level_id = ? AND p.status = 'completed'
-        `).get(req.params.userId, user.enrolled_course_id);
+        `).get(user.id, user.enrolled_course_id);
 
         res.json({
             courseId: user.enrolled_course_id,
@@ -135,8 +135,11 @@ app.get('/api/courses/:courseId/path/:userId', async (req, res) => {
     try {
         const { courseId, userId } = req.params;
 
+        const user = await db.prepare(`SELECT id FROM users WHERE telegram_id = ?`).get(userId);
+        const internalId = user ? user.id : userId; // Fallback for local dev if missing
+
         const lessons = await db.prepare('SELECT * FROM lessons WHERE level_id = ? ORDER BY "order" ASC').all(courseId);
-        const progressList = await db.prepare('SELECT * FROM user_progress WHERE user_id = ?').all(userId);
+        const progressList = await db.prepare('SELECT * FROM user_progress WHERE user_id = ?').all(internalId);
 
         const progressMap: Record<number, any> = {};
         progressList.forEach((p: any) => progressMap[p.lesson_id] = p);
@@ -189,11 +192,12 @@ app.get('/api/lessons/active/:userId', async (req, res) => {
         const userId = req.params.userId;
 
         // 1. Get user's enrolled course
-        const user = await db.prepare(`SELECT enrolled_course_id FROM users WHERE telegram_id = ?`).get(userId);
+        const user = await db.prepare(`SELECT id, enrolled_course_id FROM users WHERE telegram_id = ?`).get(userId);
         if (!user || !user.enrolled_course_id) {
             return res.status(404).json({ error: 'User is not enrolled in any course' });
         }
         const courseId = user.enrolled_course_id;
+        const internalId = user.id;
 
         // 2. Find last unlocked/completed lesson for user IN THIS COURSE
         const progress = await db.prepare(`
@@ -201,7 +205,7 @@ app.get('/api/lessons/active/:userId', async (req, res) => {
             JOIN lessons l ON p.lesson_id = l.id
             WHERE p.user_id = ? AND l.level_id = ?
             ORDER BY l."order" DESC LIMIT 1
-        `).get(userId, courseId);
+        `).get(internalId, courseId);
 
         // 3. If no progress, return the very first lesson of THIS course
         if (!progress) {
@@ -243,12 +247,25 @@ app.post('/api/lessons/:lessonId/finish', async (req, res) => {
         const { userId, needsTeacherReview, score = 10, timeSpent = 60 } = req.body;
         const lessonId = req.params.lessonId;
 
+        const user = await db.prepare(`SELECT id FROM users WHERE telegram_id = ?`).get(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        const internalId = user.id;
+
         // Mark current as completed
         await db.prepare(`
             INSERT INTO user_progress (user_id, lesson_id, status, homework_status, completed_at, score, time_spent) 
             VALUES (?, ?, 'completed', ?, datetime('now'), ?, ?)
             ON CONFLICT(user_id, lesson_id) DO UPDATE SET status='completed', homework_status=?, completed_at=datetime('now'), score=?, time_spent=time_spent+?
-        `).run(userId, lessonId, needsTeacherReview ? 'pending' : 'approved', score, timeSpent, needsTeacherReview ? 'pending' : 'approved', score, timeSpent);
+        `).run(internalId, lessonId, needsTeacherReview ? 'pending' : 'approved', score, timeSpent, needsTeacherReview ? 'pending' : 'approved', score, timeSpent);
+
+        // Sync dictionary flashcards to SRS
+        const flashcards = await db.prepare('SELECT id FROM flashcards WHERE lesson_id = ?').all(lessonId);
+        for (const fc of flashcards) {
+            await db.prepare(`
+                INSERT OR IGNORE INTO user_flashcard_progress (user_id, flashcard_id, next_review_at)
+                VALUES (?, ?, datetime('now'))
+            `).run(userId, fc.id); // user_flashcard_progress uses telegram_id (userId)
+        }
 
         // Find next lesson in the SAME course
         const currentLesson = await db.prepare(`SELECT "order", level_id FROM lessons WHERE id = ?`).get(lessonId);
@@ -266,7 +283,7 @@ app.post('/api/lessons/:lessonId/finish', async (req, res) => {
             await db.prepare(`
                  INSERT OR IGNORE INTO user_progress (user_id, lesson_id, status, unlocks_at) 
                  VALUES (?, ?, 'locked', datetime('now', '+24 hours'))
-             `).run(userId, nextLesson.id);
+             `).run(internalId, nextLesson.id);
         }
 
         res.json({ success: true, nextLessonId: nextLesson?.id });
@@ -351,13 +368,16 @@ app.delete('/api/photo-messages/:id', async (req, res) => {
 app.get('/api/photo-messages/pending/:userId', async (req, res) => {
     try {
         const userId = req.params.userId;
+        const user = await db.prepare(`SELECT id FROM users WHERE telegram_id = ?`).get(userId);
+        const internalId = user ? user.id : userId;
+
         const messages = await db.prepare(`
             SELECT pm.* FROM photo_messages pm
             WHERE pm.id NOT IN (
                 SELECT message_id FROM photo_message_views WHERE user_id = ?
             )
             ORDER BY pm.created_at ASC
-        `).all(userId);
+        `).all(internalId);
         res.json(messages);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch pending messages' });
@@ -368,9 +388,12 @@ app.get('/api/photo-messages/pending/:userId', async (req, res) => {
 app.post('/api/photo-messages/:id/viewed', async (req, res) => {
     try {
         const { userId } = req.body;
+        const user = await db.prepare(`SELECT id FROM users WHERE telegram_id = ?`).get(userId);
+        const internalId = user ? user.id : userId;
+
         await db.prepare(
             'INSERT OR IGNORE INTO photo_message_views (user_id, message_id) VALUES (?, ?)'
-        ).run(userId, req.params.id);
+        ).run(internalId, req.params.id);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Failed to mark message as viewed' });
@@ -674,6 +697,9 @@ app.post('/api/admin/lessons/:lessonId/flashcards', async (req, res) => {
 app.get('/api/users/:userId/dictionary', async (req, res) => {
     try {
         const userId = req.params.userId;
+        const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(userId);
+        const internalId = user ? user.id : userId;
+
         const dictionary = await db.prepare(`
             SELECT f.id, f.word as front, f.translation as back, l.title as lesson_title,
                    COALESCE(ufp.times_shown, 0) as times_shown,
@@ -685,7 +711,7 @@ app.get('/api/users/:userId/dictionary', async (req, res) => {
             LEFT JOIN user_flashcard_progress ufp ON ufp.flashcard_id = f.id AND ufp.user_id = ?
             WHERE up.status IN ('completed', 'unlocked')
             ORDER BY l."order", f.id
-        `).all(userId, userId);
+        `).all(internalId, userId);
         res.json(dictionary);
     } catch (err) {
         console.error("Failed to fetch dictionary", err);
@@ -697,6 +723,9 @@ app.get('/api/users/:userId/dictionary', async (req, res) => {
 app.get('/api/users/:userId/flashcards/study', async (req, res) => {
     try {
         const userId = req.params.userId;
+        const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(userId);
+        const internalId = user ? user.id : userId;
+
         // Get all available flashcards, prioritizing: 1) never-seen cards, 2) cards due for review
         const cards = await db.prepare(`
             SELECT f.id, f.word as front, f.translation as back, l.title as lesson_title,
@@ -717,7 +746,7 @@ app.get('/api/users/:userId/flashcards/study', async (req, res) => {
                 END,
                 ufp.next_review_at ASC
             LIMIT 20
-        `).all(userId, userId);
+        `).all(internalId, userId);
         res.json(cards);
     } catch (err) {
         console.error("Failed to fetch study cards", err);
@@ -786,11 +815,13 @@ app.post('/api/users/:userId/flashcards/:flashcardId/review', async (req, res) =
 app.get('/api/users/:userId/stats', async (req, res) => {
     try {
         const userId = req.params.userId;
+        const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(userId);
+        const internalId = user ? user.id : userId;
 
         // Lessons stats
         const lessonsCompleted = ((await db.prepare(
             `SELECT COUNT(*) as count FROM user_progress WHERE user_id = ? AND status = 'completed'`
-        ).get(userId)) as any)?.count || 0;
+        ).get(internalId)) as any)?.count || 0;
 
         const totalLessons = ((await db.prepare(
             `SELECT COUNT(*) as count FROM lessons`
@@ -825,7 +856,7 @@ app.get('/api/users/:userId/stats', async (req, res) => {
             const lessonActivity = ((await db.prepare(
                 `SELECT COUNT(*) as count FROM user_progress 
                  WHERE user_id = ? AND status = 'completed' AND date(completed_at) = ?`
-            ).get(userId, dateStr)) as any)?.count || 0;
+            ).get(internalId, dateStr)) as any)?.count || 0;
 
             const fcActivity = ((await db.prepare(
                 `SELECT COUNT(*) as count FROM user_flashcard_progress 
@@ -853,7 +884,7 @@ app.get('/api/users/:userId/stats', async (req, res) => {
             const completedCount = ((await db.prepare(
                 `SELECT COUNT(*) as count FROM user_progress 
                  WHERE user_id = ? AND status = 'completed' AND date(completed_at) = ?`
-            ).get(userId, dateStr)) as any)?.count || 0;
+            ).get(internalId, dateStr)) as any)?.count || 0;
 
             const fcCount = ((await db.prepare(
                 `SELECT COUNT(*) as count FROM user_flashcard_progress 
