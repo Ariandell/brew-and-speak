@@ -68,11 +68,10 @@ app.post('/api/users/:userId/enroll', async (req, res) => {
         const { courseId } = req.body;
         if (!courseId) return res.status(400).json({ error: 'courseId required' });
 
-        // Upsert user with enrolled_course_id
+        // Simple update since the user must already exist via /sync
         await db.prepare(`
-            INSERT INTO users (telegram_id, enrolled_course_id) VALUES (?, ?)
-            ON CONFLICT(telegram_id) DO UPDATE SET enrolled_course_id = ?
-        `).run(userId, courseId, courseId);
+            UPDATE users SET enrolled_course_id = ? WHERE telegram_id = ?
+        `).run(courseId, userId.toString());
 
         res.json({ success: true });
     } catch (error) {

@@ -28,6 +28,7 @@ function App() {
 
             {/* Course selection */}
             <Route path="/courses" element={<CourseSelect />} />
+            <Route path="/courses/change" element={<CourseSelect changingCourse={true} />} />
 
             {/* Core Student Flow */}
             <Route path="/" element={<Home />} />

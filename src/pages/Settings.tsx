@@ -252,6 +252,30 @@ const Profile: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Change Course Button */}
+                <button
+                    onClick={() => navigate('/courses/change')}
+                    style={{
+                        width: '100%',
+                        padding: '1.1rem',
+                        borderRadius: '20px',
+                        background: 'white',
+                        color: '#4f46e5',
+                        border: '2px solid #e0e7ff',
+                        fontSize: '1.05rem',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px',
+                        cursor: 'pointer',
+                        marginBottom: '1rem',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.02)'
+                    }}
+                >
+                    <span style={{ fontSize: '1.3rem' }}>🔄</span> Змінити курс
+                </button>
+
                 {/* Admin Access Button */}
                 {isAdmin && (
                     <button
