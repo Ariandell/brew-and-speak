@@ -102,3 +102,11 @@ export const useUserId = () => {
     }
     return 'demo-user';
 };
+
+// Helper hook to check if the current user is an admin
+export const useIsAdmin = () => {
+    const { user } = useTelegram();
+    if (!user) return true; // Default true in local dev without tg sdk (optional, but safe for testing)
+    const adminUsernames = ['Olia16', 'ARIANDEL21', 'demo_user'];
+    return adminUsernames.includes(user.username || '');
+};

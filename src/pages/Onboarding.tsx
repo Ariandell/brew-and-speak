@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
+import { useIsAdmin } from '../components/TelegramProvider';
 
 const ONBOARDING_STEPS = 5;
 
@@ -54,6 +55,7 @@ const stepsData: { title: string; options: Option[] }[] = [
 
 const Onboarding: React.FC = () => {
     const navigate = useNavigate();
+    const isAdmin = useIsAdmin();
     const [currentStep, setCurrentStep] = useState(1);
     const [answers, setAnswers] = useState<Record<number, string>>({});
 
@@ -107,7 +109,12 @@ const Onboarding: React.FC = () => {
             {/* Top Header & Progress */}
             <header className="app-header with-back-btn">
                 <button className="btn-back-header" onClick={handleBack} style={{ display: currentStep === 1 ? 'none' : 'block' }}>‹</button>
-                {currentStep === 1 && <div style={{ width: 24 }} />}
+                {currentStep === 1 && !isAdmin && <div style={{ width: 24 }} />}
+                {currentStep === 1 && isAdmin && (
+                    <button onClick={() => navigate('/admin')} style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: 'white', border: 'none', borderRadius: '10px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer' }}>
+                        Admin
+                    </button>
+                )}
                 <div style={{ flex: 1, padding: '0 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.9rem', marginBottom: '0.4rem', fontWeight: 600 }}>Completed {currentStep}/{ONBOARDING_STEPS}</span>
                     <ProgressBar progress={currentStep / ONBOARDING_STEPS} />

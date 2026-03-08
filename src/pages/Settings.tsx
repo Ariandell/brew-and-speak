@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../components/ui/BottomNav';
-import { useTelegram, useUserId } from '../components/TelegramProvider';
+import { useTelegram, useUserId, useIsAdmin } from '../components/TelegramProvider';
 
 const API = '';
 
@@ -139,6 +139,7 @@ const Profile: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useTelegram();
     const USER_ID = useUserId();
+    const isAdmin = useIsAdmin();
     const [stats, setStats] = useState<UserStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [showAllAchievements, setShowAllAchievements] = useState(false);
@@ -250,6 +251,32 @@ const Profile: React.FC = () => {
                         <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>⏱️ Час у додатку</div>
                     </div>
                 </div>
+
+                {/* Admin Access Button */}
+                {isAdmin && (
+                    <button
+                        onClick={() => navigate('/admin')}
+                        style={{
+                            width: '100%',
+                            padding: '1.1rem',
+                            borderRadius: '20px',
+                            background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                            color: 'white',
+                            border: 'none',
+                            fontSize: '1.05rem',
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '10px',
+                            cursor: 'pointer',
+                            marginBottom: '1.5rem',
+                            boxShadow: '0 8px 20px rgba(15, 23, 42, 0.2)'
+                        }}
+                    >
+                        <span style={{ fontSize: '1.3rem' }}>⚙️</span> Панель адміністратора
+                    </button>
+                )}
 
                 {/* Achievements Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
