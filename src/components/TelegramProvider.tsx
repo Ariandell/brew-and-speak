@@ -46,14 +46,27 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
             if (tgUser) {
                 setUser(tgUser as WebAppUser);
+                // Sync user to database silently
+                fetch('/api/users/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(tgUser)
+                }).catch(() => { });
             } else {
                 // Fallback for local development outside Telegram
                 console.warn('Telegram WebApp initialized but no user found in initDataUnsafe. Using demo-user fallback.');
-                setUser({
+                const demoUser = {
                     id: 1,
                     first_name: 'Demo',
                     username: 'demo_user',
-                } as unknown as WebAppUser);
+                } as unknown as WebAppUser;
+                setUser(demoUser);
+
+                fetch('/api/users/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(demoUser)
+                }).catch(() => { });
             }
 
             // Apply Telegram theme dynamically to root CSS variables
@@ -76,11 +89,18 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         } else {
             console.warn('Telegram WebApp SDK not found.');
             // Development fallback
-            setUser({
+            const fallbackUser = {
                 id: 1,
                 first_name: 'Demo (Web)',
-                username: 'demo_web',
-            } as unknown as WebAppUser);
+                username: 'demo_user', // Fixed to demo_user to match admin check
+            } as unknown as WebAppUser;
+            setUser(fallbackUser);
+
+            fetch('/api/users/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(fallbackUser)
+            }).catch(() => { });
         }
 
         setReady(true);

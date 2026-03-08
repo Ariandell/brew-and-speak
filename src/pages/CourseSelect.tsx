@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUserId } from '../components/TelegramProvider';
+import { useUserId, useIsAdmin } from '../components/TelegramProvider';
 
 const API = '';
 
@@ -19,6 +19,7 @@ interface CourseSelectProps {
 const CourseSelect: React.FC<CourseSelectProps> = ({ onEnrolled, changingCourse }) => {
     const navigate = useNavigate();
     const USER_ID = useUserId();
+    const isAdmin = useIsAdmin();
     const [courses, setCourses] = useState<Course[]>([]);
     const [loading, setLoading] = useState(true);
     const [enrolling, setEnrolling] = useState<number | null>(null);
@@ -78,6 +79,14 @@ const CourseSelect: React.FC<CourseSelectProps> = ({ onEnrolled, changingCourse 
                 <p style={{ margin: 0, opacity: 0.8, fontSize: '0.95rem' }}>
                     {changingCourse ? 'Вибери інший курс для навчання' : 'Викладач підготував курси для різних рівнів'}
                 </p>
+                {isAdmin && courses.length > 0 && (
+                    <button
+                        onClick={() => navigate('/admin')}
+                        style={{ marginTop: '1.5rem', background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.4)', borderRadius: '12px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                        ⚙️ Адмінка
+                    </button>
+                )}
             </div>
 
             <div style={{ padding: '0 1rem 100px', marginTop: '-2rem', flex: 1 }}>
@@ -87,7 +96,22 @@ const CourseSelect: React.FC<CourseSelectProps> = ({ onEnrolled, changingCourse 
                     <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '2rem', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
                         <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Курсів ще немає</p>
-                        <p style={{ fontSize: '0.88rem', color: '#888' }}>Викладач ще не створив жодного курсу. Зверніться до нього у чаті!</p>
+                        <p style={{ fontSize: '0.88rem', color: '#888', marginBottom: isAdmin ? '1.5rem' : 0 }}>Викладач ще не створив жодного курсу. Зверніться до нього у чаті!</p>
+
+                        {isAdmin && (
+                            <button
+                                onClick={() => navigate('/admin')}
+                                style={{
+                                    width: '100%', padding: '12px', border: 'none', borderRadius: '12px',
+                                    background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                                    color: 'white', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 800,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                    boxShadow: '0 4px 15px rgba(15, 23, 42, 0.2)'
+                                }}
+                            >
+                                <span style={{ fontSize: '1.2rem' }}>⚙️</span> Панель адміністратора
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

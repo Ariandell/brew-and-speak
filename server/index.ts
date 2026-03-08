@@ -39,6 +39,28 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
 
 // --- Student enrollment API ---
 
+// Sync user on init
+app.post('/api/users/sync', async (req, res) => {
+    try {
+        const { id, username, first_name, last_name } = req.body;
+        if (!id) return res.status(400).json({ error: 'User ID required' });
+
+        const name = [first_name, last_name].filter(Boolean).join(' ') || username || 'Unknown';
+
+        // Upsert user to ensure they exist in DB
+        // If they already exist, we just update their name/username in case it changed
+        await db.prepare(`
+            INSERT INTO users (telegram_id, name) VALUES (?, ?)
+            ON CONFLICT(telegram_id) DO UPDATE SET name = ?
+        `).run(id.toString(), name, name);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to sync user:', error);
+        res.status(500).json({ error: 'Failed to sync user' });
+    }
+});
+
 // Enroll a student in a course
 app.post('/api/users/:userId/enroll', async (req, res) => {
     try {
