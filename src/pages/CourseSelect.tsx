@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUserId } from '../components/TelegramProvider';
 
-const API = '''';
+const API = '';
 
 interface Course {
     id: number;

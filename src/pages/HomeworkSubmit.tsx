@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useUserId } from '../components/TelegramProvider';
 
-const API = '''';
+const API = '';
 
 const HomeworkSubmit: React.FC = () => {
     const navigate = useNavigate();

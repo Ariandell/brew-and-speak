@@ -4,7 +4,7 @@ import { ProgressBar } from '../components/ui/ProgressBar';
 import { FeedbackBanner } from '../components/ui/FeedbackBanner';
 import { useUserId } from '../components/TelegramProvider';
 
-const API = '''';
+const API = '';
 
 // ─── Block Renderers ───────────────────────────────────────────────────────
 

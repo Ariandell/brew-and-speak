@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../components/ui/BottomNav';
 import { useUserId } from '../components/TelegramProvider';
 
-const API = '''';
+const API = '';
 
 interface Message {
     id: number;

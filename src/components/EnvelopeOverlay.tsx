@@ -13,7 +13,7 @@ interface EnvelopeOverlayProps {
     onViewed: (id: number) => void;
 }
 
-const API = '''';
+const API = '';
 
 export const EnvelopeOverlay: React.FC<EnvelopeOverlayProps> = ({ messages, onClose, onViewed }) => {
     const [phase, setPhase] = useState<'envelope' | 'opening' | 'photo'>('envelope');

@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../components/ui/BottomNav';
 import { CircularProgress } from '../components/ui/CircularProgress';
 import { EnvelopeOverlay } from '../components/EnvelopeOverlay';
+import { useUserId } from '../components/TelegramProvider';
 
-const API = '''';
-const USER_ID = 'demo-user';
+const API = '';
 
 const Home: React.FC = () => {
     const navigate = useNavigate();
+    const USER_ID = useUserId();
     const [pendingPhotos, setPendingPhotos] = useState<any[]>([]);
     const [showEnvelope, setShowEnvelope] = useState(false);
     const [enrollment, setEnrollment] = useState<any>(null);
