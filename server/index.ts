@@ -406,12 +406,15 @@ app.post('/api/photo-messages/:id/viewed', async (req, res) => {
 app.get('/api/chat/:userId', async (req, res) => {
     try {
         const userId = req.params.userId;
+        const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(userId);
+        const internalId = user ? user.id : userId;
+
         const messages = await db.prepare(`
             SELECT * FROM messages 
             WHERE (sender_id = ? AND receiver_id = 'admin') 
                OR (sender_id = 'admin' AND receiver_id = ?)
             ORDER BY created_at ASC
-        `).all(userId, userId);
+        `).all(internalId, internalId);
         res.json(messages);
     } catch (error) {
         console.error('Failed to fetch chat messages:', error);
@@ -427,10 +430,22 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
+        let actualSenderId = sender_id;
+        if (sender_id !== 'admin') {
+            const sender = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(sender_id);
+            if (sender) actualSenderId = sender.id;
+        }
+
+        let actualReceiverId = receiver_id;
+        if (receiver_id !== 'admin') {
+            const receiver = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(receiver_id);
+            if (receiver) actualReceiverId = receiver.id;
+        }
+
         const result = await db.prepare(`
             INSERT INTO messages (sender_id, receiver_id, text) 
             VALUES (?, ?, ?)
-        `).run(sender_id, receiver_id, text);
+        `).run(actualSenderId, actualReceiverId, text);
 
         res.json({ success: true, id: result.lastInsertRowid });
     } catch (error) {
@@ -477,11 +492,24 @@ app.get('/api/chat/admin/conversations', async (req, res) => {
 app.post('/api/chat/read', async (req, res) => {
     try {
         const { sender_id, receiver_id } = req.body;
+
+        let actualSenderId = sender_id;
+        if (sender_id !== 'admin') {
+            const sender = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(sender_id);
+            if (sender) actualSenderId = sender.id;
+        }
+
+        let actualReceiverId = receiver_id;
+        if (receiver_id !== 'admin') {
+            const receiver = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(receiver_id);
+            if (receiver) actualReceiverId = receiver.id;
+        }
+
         await db.prepare(`
             UPDATE messages 
             SET is_read = 1 
             WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
-        `).run(sender_id, receiver_id);
+        `).run(actualSenderId, actualReceiverId);
 
         res.json({ success: true });
     } catch (error) {
@@ -500,12 +528,15 @@ app.post('/api/homework', upload.single('file'), async (req, res) => {
         const { lesson_id, user_id, text } = req.body;
         if (!lesson_id || !user_id) return res.status(400).json({ error: 'lesson_id and user_id required' });
 
+        const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(user_id);
+        const internalId = user ? user.id : user_id;
+
         const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
         const fileName = req.file ? req.file.originalname : null;
 
         const result = await db.prepare(
             'INSERT INTO homework_submissions (lesson_id, user_id, text, file_url, file_name) VALUES (?, ?, ?, ?, ?)'
-        ).run(lesson_id, user_id, text || '', fileUrl, fileName);
+        ).run(lesson_id, internalId, text || '', fileUrl, fileName);
 
         res.json({ success: true, id: result.lastInsertRowid });
     } catch (error) {
@@ -529,9 +560,12 @@ app.get('/api/homework/lesson/:lessonId', async (req, res) => {
 // Student: get their own homework submission for a lesson
 app.get('/api/homework/lesson/:lessonId/user/:userId', async (req, res) => {
     try {
+        const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(req.params.userId);
+        const internalId = user ? user.id : req.params.userId;
+
         const submission = await db.prepare(
             'SELECT * FROM homework_submissions WHERE lesson_id = ? AND user_id = ? ORDER BY submitted_at DESC LIMIT 1'
-        ).get(req.params.lessonId, req.params.userId);
+        ).get(req.params.lessonId, internalId);
         res.json(submission || null);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch homework' });
