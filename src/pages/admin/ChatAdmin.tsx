@@ -6,6 +6,7 @@ const API = '';
 
 interface Conversation {
     user_id: string;
+    user_name: string;
     last_activity: string;
     unread_count: number;
     last_message: string;
@@ -267,7 +268,7 @@ export const ChatAdmin: React.FC = () => {
                                                 fontSize: '1.2rem',
                                                 flexShrink: 0
                                             }}>
-                                                {conv.user_id.substring(0, 1).toUpperCase()}
+                                                {(conv.user_name || conv.user_id).substring(0, 1).toUpperCase()}
                                             </div>
 
                                             {/* Content container */}
@@ -281,7 +282,7 @@ export const ChatAdmin: React.FC = () => {
                                                         textOverflow: 'ellipsis',
                                                         fontSize: '1rem'
                                                     }}>
-                                                        {conv.user_id}
+                                                        {conv.user_name || conv.user_id}
                                                     </span>
                                                     <span style={{
                                                         fontSize: '0.75rem',
@@ -366,11 +367,11 @@ export const ChatAdmin: React.FC = () => {
                                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                                     </button>
                                     <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: 600, flexShrink: 0 }}>
-                                        {activeUser.substring(0, 1).toUpperCase()}
+                                        {conversations.find(c => c.user_id === activeUser)?.user_name?.substring(0, 1)?.toUpperCase() || activeUser.substring(0, 1).toUpperCase()}
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                         <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, color: 'var(--color-text-main)', lineHeight: 1.2 }}>
-                                            {activeUser}
+                                            {conversations.find(c => c.user_id === activeUser)?.user_name || activeUser}
                                         </h3>
                                         <div style={{ fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: 500, marginTop: '2px' }}>
                                             в мережі

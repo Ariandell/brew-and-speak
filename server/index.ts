@@ -485,6 +485,7 @@ app.get('/api/chat/admin/conversations', async (req, res) => {
         const conversations = await db.prepare(`
             SELECT 
                 u.telegram_id as user_id,
+                u.name as user_name,
                 MAX(t.created_at) as last_activity,
                 SUM(CASE WHEN t.sender_id != ? AND t.is_read = 0 THEN 1 ELSE 0 END) as unread_count,
                 (SELECT text FROM messages m2 
@@ -605,7 +606,7 @@ app.get('/api/admin/homework', async (req, res) => {
     try {
         const { status } = req.query; // 'pending' or 'graded'
         let query = `
-            SELECT h.*, l.title as lesson_title, u.first_name, u.last_name, u.username
+            SELECT h.*, l.title as lesson_title, u.name as user_name, u.telegram_id as telegram_id
             FROM homework_submissions h
             JOIN lessons l ON h.lesson_id = l.id
             JOIN users u ON h.user_id = u.id

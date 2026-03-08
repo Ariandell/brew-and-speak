@@ -13,9 +13,8 @@ interface Stats {
 interface Homework {
     id: number;
     lesson_title: string;
-    first_name: string;
-    last_name: string;
-    username: string;
+    user_name: string;
+    telegram_id: string;
     text: string;
     file_url: string;
     file_name: string;
@@ -52,7 +51,7 @@ const Statistics: React.FC = () => {
             const hwData = await hwRes.json();
 
             setStats(statsData);
-            setHomeworkList(hwData);
+            setHomeworkList(Array.isArray(hwData) ? hwData : []);
         } catch (error) {
             console.error(error);
         } finally {
@@ -164,7 +163,7 @@ const Statistics: React.FC = () => {
                             }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                                     <div>
-                                        <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>{hw.first_name} {hw.last_name || hw.username}</h4>
+                                        <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>{hw.user_name || hw.telegram_id}</h4>
                                         <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>{hw.lesson_title}</p>
                                     </div>
                                     <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
@@ -206,7 +205,7 @@ const Statistics: React.FC = () => {
                         {/* Student Details */}
                         <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '16px', marginBottom: '1.5rem', border: '1px solid #e2e8f0' }}>
                             <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Студент</p>
-                            <p style={{ margin: '2px 0 8px', fontSize: '1.05rem', fontWeight: 700 }}>{selectedHW.first_name} {selectedHW.username && <span style={{ color: '#94a3b8', fontWeight: 500 }}>@{selectedHW.username}</span>}</p>
+                            <p style={{ margin: '2px 0 8px', fontSize: '1.05rem', fontWeight: 700 }}>{selectedHW.user_name} <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: '0.85rem' }}>({selectedHW.telegram_id})</span></p>
                             <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>Урок</p>
                             <p style={{ margin: '2px 0 0', fontSize: '1rem', fontWeight: 600 }}>{selectedHW.lesson_title}</p>
                         </div>
