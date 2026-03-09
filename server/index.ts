@@ -4,7 +4,7 @@ import multer from 'multer';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync, mkdirSync } from 'fs';
-import { db, dbRaw } from './db.ts';
+import { db, dbRaw } from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -1142,5 +1142,11 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
+// Only start listening when running directly (not imported by Vercel)
+if (process.env.VERCEL !== '1') {
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+}
+
+// Export for Vercel serverless
+export default app;

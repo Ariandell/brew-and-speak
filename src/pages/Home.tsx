@@ -12,29 +12,60 @@ const Home: React.FC = () => {
     const USER_ID = useUserId();
     const [pendingPhotos, setPendingPhotos] = useState<any[]>([]);
     const [showEnvelope, setShowEnvelope] = useState(false);
-    const [enrollment, setEnrollment] = useState<any>(null);
+    const [enrollment, setEnrollment] = useState<any>(() => {
+        // Initialize from localStorage cache to avoid redirect on cold start
+        try {
+            const cached = localStorage.getItem(`enrollment_${USER_ID || 'default'}`);
+            return cached ? JSON.parse(cached) : null;
+        } catch { return null; }
+    });
     const [coursePath, setCoursePath] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [checkingEnrollment, setCheckingEnrollment] = useState(true);
+    const [enrollmentChecked, setEnrollmentChecked] = useState(false); // true = API responded successfully
 
     useEffect(() => {
         if (!USER_ID) return;
 
         setLoading(true);
-        // First check enrollment
+        // Check enrollment from API
         fetch(`${API}/api/users/${USER_ID}/enrollment`)
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) throw new Error('API error');
+                return r.json();
+            })
             .then(async data => {
                 setEnrollment(data);
+                setEnrollmentChecked(true); // API responded successfully
 
                 if (data.courseId) {
+                    // Cache successful enrollment
+                    try { localStorage.setItem(`enrollment_${USER_ID}`, JSON.stringify(data)); } catch { }
+
                     // Fetch full course path with user progress
                     const pathRes = await fetch(`${API}/api/courses/${data.courseId}/path/${USER_ID}`);
                     const pathData = await pathRes.json();
                     setCoursePath(pathData);
+                } else {
+                    // API confirmed: no enrollment. Clear cache.
+                    try { localStorage.removeItem(`enrollment_${USER_ID}`); } catch { }
                 }
             })
-            .catch(() => setEnrollment({ courseId: null, course: null }))
+            .catch(() => {
+                // API failed (cold start, network error) — DON'T redirect
+                // Keep using cached enrollment if available
+                console.warn('Enrollment API failed, using cached data');
+                setEnrollmentChecked(false);
+
+                // If we have cached enrollment, try to load course path
+                const cached = enrollment;
+                if (cached?.courseId) {
+                    fetch(`${API}/api/courses/${cached.courseId}/path/${USER_ID}`)
+                        .then(r => r.json())
+                        .then(data => setCoursePath(data))
+                        .catch(() => { });
+                }
+            })
             .finally(() => {
                 setCheckingEnrollment(false);
                 setLoading(false);
@@ -90,8 +121,9 @@ const Home: React.FC = () => {
 
     if (checkingEnrollment) return null;
 
-    // Redirect to course selection only after we are sure they aren't enrolled
-    if (!enrollment?.courseId && !loading) {
+    // Only redirect to /courses if API SUCCESSFULLY confirmed no enrollment
+    // (not if API failed due to cold start / network error)
+    if (!enrollment?.courseId && !loading && enrollmentChecked) {
         navigate('/courses');
         return null;
     }

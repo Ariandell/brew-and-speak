@@ -40,6 +40,8 @@ const CourseSelect: React.FC<CourseSelectProps> = ({ onEnrolled, changingCourse 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ courseId })
             });
+            // Cache enrollment in localStorage to survive cold starts
+            try { localStorage.setItem(`enrollment_${USER_ID}`, JSON.stringify({ courseId })); } catch { }
             if (onEnrolled) {
                 onEnrolled();
             } else {
