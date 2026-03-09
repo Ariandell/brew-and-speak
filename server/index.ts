@@ -313,16 +313,17 @@ app.post('/api/lessons/:lessonId/finish', async (req, res) => {
         }
 
         // Mark current as completed
+        const nowISO = new Date().toISOString();
         await db.prepare(`
             INSERT INTO user_progress (user_id, lesson_id, status, homework_status, completed_at, score, time_spent) 
-            VALUES (?, ?, 'completed', ?, datetime('now'), ?, ?)
+            VALUES (?, ?, 'completed', ?, ?, ?, ?)
             ON CONFLICT(user_id, lesson_id) DO UPDATE SET 
                 status='completed', 
                 homework_status=?, 
-                completed_at=datetime('now'), 
+                completed_at=?, 
                 score=?, 
                 time_spent=time_spent+?
-        `).run(internalId, lessonId, needsTeacherReview ? 'pending' : 'approved', score, timeSpent, needsTeacherReview ? 'pending' : 'approved', score, timeSpent);
+        `).run(internalId, lessonId, needsTeacherReview ? 'pending' : 'approved', nowISO, score, timeSpent, needsTeacherReview ? 'pending' : 'approved', nowISO, score, timeSpent);
 
         // Sync dictionary flashcards to SRS
         const flashcards = await db.prepare('SELECT id FROM flashcards WHERE lesson_id = ?').all(lessonId);
@@ -406,9 +407,10 @@ app.post('/api/photo-messages', upload.single('image'), async (req, res) => {
         const imageUrl = `/api/assets/${assetId}`;
 
         console.log(`Creating photo message in DB. URL: ${imageUrl}`);
+        const nowISO = new Date().toISOString();
         const result = await db.prepare(
-            'INSERT INTO photo_messages (image_url, caption, scheduled_at) VALUES (?, ?, datetime("now"))'
-        ).run(imageUrl, caption || '');
+            'INSERT INTO photo_messages (image_url, caption, scheduled_at) VALUES (?, ?, ?)'
+        ).run(imageUrl, caption || '', nowISO);
         console.log('Photo message created result:', result);
 
         res.json({ success: true, id: result.lastInsertRowid, image_url: imageUrl });
@@ -694,6 +696,7 @@ app.get('/api/homework/lesson/:lessonId/user/:userId', async (req, res) => {
 // Admin: get all pending homework OR those graded in the last 24 hours
 app.get('/api/admin/homework', async (req, res) => {
     try {
+        const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const homework = await db.prepare(`
             SELECT h.*, l.title as lesson_title, u.name as user_name, u.telegram_id 
             FROM homework_submissions h
@@ -701,9 +704,9 @@ app.get('/api/admin/homework', async (req, res) => {
             JOIN users u ON h.user_id = u.id
             WHERE h.status IS NULL
                OR h.status = 'pending' 
-               OR h.updated_at > datetime('now', '-24 hours')
+               OR h.updated_at > ?
             ORDER BY h.submitted_at DESC
-        `).all();
+        `).all(cutoffDate);
         console.log(`Admin homework query returned ${(homework || []).length} items`);
         res.json(homework || []);
     } catch (error) {
@@ -718,11 +721,12 @@ app.post('/api/admin/homework/:id/grade', async (req, res) => {
         const { grade, feedback } = req.body;
         const id = req.params.id;
 
+        const nowISO = new Date().toISOString();
         await db.prepare(`
             UPDATE homework_submissions 
-            SET grade = ?, feedback = ?, status = 'graded', updated_at = datetime('now')
+            SET grade = ?, feedback = ?, status = 'graded', updated_at = ?
             WHERE id = ?
-        `).run(grade, feedback || '', id);
+        `).run(grade, feedback || '', nowISO, id);
 
         // Optional: you could notify the student here via bot or message
 
