@@ -156,15 +156,17 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS homework_submissions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       lesson_id INTEGER NOT NULL,
-      user_id TEXT NOT NULL,
+      user_id INTEGER NOT NULL,
       text TEXT,
       file_url TEXT,
       file_name TEXT,
       submitted_at DATETIME DEFAULT (datetime('now', 'localtime')),
+      updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
       grade INTEGER,
       feedback TEXT,
       status TEXT DEFAULT 'pending',
-      FOREIGN KEY (lesson_id) REFERENCES lessons (id)
+      FOREIGN KEY (lesson_id) REFERENCES lessons (id),
+      FOREIGN KEY (user_id) REFERENCES users (id)
     );
   `);
 
@@ -173,6 +175,7 @@ async function initDB() {
       await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN grade INTEGER");
       await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN feedback TEXT");
       await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN status TEXT DEFAULT 'pending'");
+      await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN updated_at DATETIME");
     } catch (e) {
       // Ignore if columns already exist
     }

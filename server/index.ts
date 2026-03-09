@@ -31,14 +31,25 @@ app.use('/uploads', express.static(uploadsDir));
 // Serve assets directly from DB to avoid Render Ephemeral Disk wipe
 app.get('/api/assets/:id', async (req, res) => {
     try {
-        const asset = await db.prepare('SELECT mime_type, data FROM app_assets WHERE id = ?').get(req.params.id);
+        const { id } = req.params;
+        const { name } = req.query;
+
+        const asset = await db.prepare('SELECT mime_type, data FROM app_assets WHERE id = ?').get(id);
         if (!asset) return res.status(404).send('Not found');
 
         const buffer = Buffer.from(asset.data as string, 'base64');
         res.setHeader('Content-Type', asset.mime_type as string);
+
+        if (name) {
+            // Encode filename to handle non-ASCII characters
+            const encodedName = encodeURIComponent(name as string);
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedName}`);
+        }
+
         res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
         res.send(buffer);
-    } catch {
+    } catch (e) {
+        console.error('Error serving asset:', e);
         res.status(500).send('Error loading asset');
     }
 });
@@ -162,9 +173,13 @@ app.get('/api/courses/:courseId/path/:userId', async (req, res) => {
 
         const lessons = await db.prepare('SELECT * FROM lessons WHERE level_id = ? ORDER BY "order" ASC').all(courseId);
         const progressList = await db.prepare('SELECT * FROM user_progress WHERE user_id = ?').all(internalId);
+        const homeworkList = await db.prepare('SELECT lesson_id, grade, feedback, status FROM homework_submissions WHERE user_id = ?').all(internalId);
 
         const progressMap: Record<number, any> = {};
         progressList.forEach((p: any) => progressMap[p.lesson_id] = p);
+
+        const hwMap: Record<number, any> = {};
+        homeworkList.forEach((h: any) => hwMap[h.lesson_id] = h);
 
         const courseLessonIds = new Set(lessons.map((l: any) => l.id));
         const hasAnyProgress = progressList.some((p: any) => courseLessonIds.has(p.lesson_id));
@@ -193,11 +208,16 @@ app.get('/api/courses/:courseId/path/:userId', async (req, res) => {
                 status = 'unlocked';
             }
 
+            const hw = hwMap[lesson.id];
+
             return {
                 ...lesson,
                 status,
                 unlocks_at: unlocksAt,
-                completed_at: completedAt
+                completed_at: completedAt,
+                homework_grade: hw ? hw.grade : null,
+                homework_feedback: hw ? hw.feedback : null,
+                homework_status: hw ? hw.status : null
             };
         });
 
@@ -273,11 +293,35 @@ app.post('/api/lessons/:lessonId/finish', async (req, res) => {
         if (!user) return res.status(404).json({ error: 'User not found' });
         const internalId = user.id;
 
+        // --- Cooldown Logic ---
+        const existingProgress = await db.prepare(
+            "SELECT completed_at FROM user_progress WHERE user_id = ? AND lesson_id = ? AND status = 'completed'"
+        ).get(internalId, lessonId);
+
+        if (existingProgress && existingProgress.completed_at) {
+            const lastCompRaw = existingProgress.completed_at;
+            const lastCompleted = new Date(typeof lastCompRaw === 'number' || typeof lastCompRaw === 'string' ? lastCompRaw : String(lastCompRaw));
+            const now = new Date();
+            const hoursSince = (now.getTime() - lastCompleted.getTime()) / (1000 * 60 * 60);
+
+            if (hoursSince < 24) {
+                const remaining = (24 - hoursSince).toFixed(1);
+                return res.status(403).json({
+                    error: `Ви нещодавно вже проходили цей урок. Перепройти можна через ${remaining} год.`
+                });
+            }
+        }
+
         // Mark current as completed
         await db.prepare(`
             INSERT INTO user_progress (user_id, lesson_id, status, homework_status, completed_at, score, time_spent) 
             VALUES (?, ?, 'completed', ?, datetime('now'), ?, ?)
-            ON CONFLICT(user_id, lesson_id) DO UPDATE SET status='completed', homework_status=?, completed_at=datetime('now'), score=?, time_spent=time_spent+?
+            ON CONFLICT(user_id, lesson_id) DO UPDATE SET 
+                status='completed', 
+                homework_status=?, 
+                completed_at=datetime('now'), 
+                score=?, 
+                time_spent=time_spent+?
         `).run(internalId, lessonId, needsTeacherReview ? 'pending' : 'approved', score, timeSpent, needsTeacherReview ? 'pending' : 'approved', score, timeSpent);
 
         // Sync dictionary flashcards to SRS
@@ -361,9 +405,11 @@ app.post('/api/photo-messages', upload.single('image'), async (req, res) => {
 
         const imageUrl = `/api/assets/${assetId}`;
 
+        console.log(`Creating photo message in DB. URL: ${imageUrl}`);
         const result = await db.prepare(
-            'INSERT INTO photo_messages (image_url, caption, scheduled_at) VALUES (?, ?, datetime("now", "localtime"))'
+            'INSERT INTO photo_messages (image_url, caption, scheduled_at) VALUES (?, ?, datetime("now"))'
         ).run(imageUrl, caption || '');
+        console.log('Photo message created result:', result);
 
         res.json({ success: true, id: result.lastInsertRowid, image_url: imageUrl });
     } catch (error) {
@@ -375,9 +421,12 @@ app.post('/api/photo-messages', upload.single('image'), async (req, res) => {
 // List all photo messages (for admin panel)
 app.get('/api/photo-messages', async (_req, res) => {
     try {
-        const messages = await db.prepare('SELECT * FROM photo_messages ORDER BY scheduled_at DESC').all();
-        res.json(messages);
+        console.log('Fetching photo messages from DB...');
+        const messages = await db.prepare('SELECT * FROM photo_messages ORDER BY id DESC').all();
+        console.log(`Found ${messages?.length || 0} photo messages`);
+        res.json(messages || []);
     } catch (error) {
+        console.error('Failed to fetch photo messages:', error);
         res.status(500).json({ error: 'Failed to fetch photo messages' });
     }
 });
@@ -587,8 +636,16 @@ app.post('/api/homework', upload.single('file'), async (req, res) => {
         const user = await db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(user_id);
         const internalId = user ? user.id : user_id;
 
-        const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
+        let fileUrl = null;
         const fileName = req.file ? req.file.originalname : null;
+
+        if (req.file) {
+            const assetId = 'hw-' + Date.now().toString() + '-' + Math.round(Math.random() * 10000);
+            const base64Data = req.file.buffer.toString('base64');
+            await db.prepare('INSERT INTO app_assets (id, mime_type, data) VALUES (?, ?, ?)')
+                .run(assetId, req.file.mimetype, base64Data);
+            fileUrl = `/api/assets/${assetId}`;
+        }
 
         const result = await db.prepare(
             'INSERT INTO homework_submissions (lesson_id, user_id, text, file_url, file_name) VALUES (?, ?, ?, ?, ?)'
@@ -630,26 +687,19 @@ app.get('/api/homework/lesson/:lessonId/user/:userId', async (req, res) => {
 
 
 
-// Admin: get all pending or graded homework across all courses
+// Admin: get all pending homework OR those graded in the last 24 hours
 app.get('/api/admin/homework', async (req, res) => {
     try {
-        const { status } = req.query; // 'pending' or 'graded'
-        let query = `
-            SELECT h.*, l.title as lesson_title, u.name as user_name, u.telegram_id as telegram_id
+        const homework = await db.prepare(`
+            SELECT h.*, l.title as lesson_title, u.name as user_name, u.telegram_id 
             FROM homework_submissions h
             JOIN lessons l ON h.lesson_id = l.id
             JOIN users u ON h.user_id = u.id
-        `;
-        let params: any[] = [];
-
-        if (status) {
-            query += ` WHERE h.status = ?`;
-            params.push(status);
-        }
-        query += ` ORDER BY h.submitted_at DESC`;
-
-        const submissions = await db.prepare(query).all(...params);
-        res.json(submissions);
+            WHERE h.status = 'pending' 
+               OR h.updated_at > datetime('now', '-24 hours')
+            ORDER BY h.submitted_at DESC
+        `).all();
+        res.json(homework || []);
     } catch (error) {
         console.error('Failed to fetch admin homework:', error);
         res.status(500).json({ error: 'Failed to fetch homework' });
@@ -662,9 +712,11 @@ app.post('/api/admin/homework/:id/grade', async (req, res) => {
         const { grade, feedback } = req.body;
         const id = req.params.id;
 
-        await db.prepare(
-            'UPDATE homework_submissions SET grade = ?, feedback = ?, status = ? WHERE id = ?'
-        ).run(grade !== undefined ? grade : null, feedback || '', 'graded', id);
+        await db.prepare(`
+            UPDATE homework_submissions 
+            SET grade = ?, feedback = ?, status = 'graded', updated_at = datetime('now')
+            WHERE id = ?
+        `).run(grade, feedback || '', id);
 
         // Optional: you could notify the student here via bot or message
 
@@ -682,7 +734,10 @@ app.get('/api/admin/statistics', async (req, res) => {
             totalUsers: (await db.prepare('SELECT COUNT(*) as c FROM users WHERE role != ?').get('admin'))?.c || 0,
             completedLessons: (await db.prepare('SELECT COUNT(*) as c FROM user_progress WHERE status = ?').get('completed'))?.c || 0,
             pendingHomework: (await db.prepare('SELECT COUNT(*) as c FROM homework_submissions WHERE status = ?').get('pending'))?.c || 0,
-            activeToday: (await db.prepare('SELECT COUNT(DISTINCT user_id) as c FROM user_progress WHERE date(completed_at) = date("now")').get())?.c || 0
+            activeToday: (await db.prepare('SELECT COUNT(DISTINCT user_id) as c FROM user_progress WHERE date(completed_at) = date("now")').get())?.c || 0,
+            totalWordsLearned: (await db.prepare('SELECT COUNT(*) as c FROM dictionary').get())?.c || 0,
+            totalFlashcards: (await db.prepare('SELECT COUNT(*) as c FROM flashcards').get())?.c || 0,
+            totalSubmissions: (await db.prepare('SELECT COUNT(*) as c FROM homework_submissions').get())?.c || 0
         };
         res.json(stats);
     } catch (error) {

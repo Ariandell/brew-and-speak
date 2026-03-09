@@ -18,6 +18,9 @@ const Home: React.FC = () => {
     const [checkingEnrollment, setCheckingEnrollment] = useState(true);
 
     useEffect(() => {
+        if (!USER_ID) return;
+
+        setLoading(true);
         // First check enrollment
         fetch(`${API}/api/users/${USER_ID}/enrollment`)
             .then(r => r.json())
@@ -32,7 +35,10 @@ const Home: React.FC = () => {
                 }
             })
             .catch(() => setEnrollment({ courseId: null, course: null }))
-            .finally(() => { setCheckingEnrollment(false); setLoading(false); });
+            .finally(() => {
+                setCheckingEnrollment(false);
+                setLoading(false);
+            });
 
         // Pending photo messages (envelope)
         fetch(`${API}/api/photo-messages/pending/${USER_ID}`)
@@ -44,7 +50,7 @@ const Home: React.FC = () => {
                 }
             })
             .catch(() => { });
-    }, []);
+    }, [USER_ID]);
 
     const handlePhotoViewed = (id: number) => {
         fetch(`${API}/api/photo-messages/${id}/viewed`, {
@@ -55,7 +61,7 @@ const Home: React.FC = () => {
     };
 
     // Helper to format remaining time
-    const formatTimeLeft = (unlocksAt: string) => {
+    const formatTimeLeft = (unlocksAt: string | number) => {
         const now = new Date().getTime();
         const unlockTime = new Date(unlocksAt).getTime();
         const diff = unlockTime - now;
@@ -69,9 +75,22 @@ const Home: React.FC = () => {
         return `через ${minutes} хв`;
     };
 
-    if (checkingEnrollment) return null; // Wait for enrollment check before routing
+    const getReplayTimeLeft = (completedAt: string | number) => {
+        const lastCompleted = new Date(completedAt).getTime();
+        const replayAt = lastCompleted + (24 * 60 * 60 * 1000);
+        const now = new Date().getTime();
+        const diff = replayAt - now;
 
-    // Optional: if not enrolled, redirect to course selection
+        if (diff <= 0) return null;
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        return hours > 0 ? `${hours}г ${minutes}хв` : `${minutes}хв`;
+    };
+
+    if (checkingEnrollment) return null;
+
+    // Redirect to course selection only after we are sure they aren't enrolled
     if (!enrollment?.courseId && !loading) {
         navigate('/courses');
         return null;
@@ -99,7 +118,7 @@ const Home: React.FC = () => {
                     style={{
                         animationDelay: '0.1s',
                         backgroundColor: 'white', borderRadius: '24px', padding: '1.75rem',
-                        boxShadow: '0 12px 35px rgba(0,0,0,0.06)', marginBottom: '2.5rem',
+                        boxShadow: '0 12px 35px rgba(0,0,0,0.06)', marginBottom: '2rem',
                         border: '1px solid rgba(0,0,0,0.03)'
                     }}>
                     {loading ? (
@@ -136,11 +155,33 @@ const Home: React.FC = () => {
                     )}
                 </div>
 
+                {/* Feedback Section (if any) */}
+                {coursePath.some(l => l.homework_feedback || l.homework_grade) && (
+                    <div style={{ marginBottom: '2rem' }}>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            📝 Фідбек до ДЗ
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {coursePath.filter(l => l.homework_feedback || l.homework_grade).map(lesson => (
+                                <div key={lesson.id} style={{ background: 'white', borderRadius: '20px', padding: '1.2rem', boxShadow: '0 4px 15px rgba(0,0,0,0.04)', border: '1px solid #e0e7ff' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <span style={{ fontWeight: 800, color: '#1e293b' }}>{lesson.title}</span>
+                                        <span style={{ fontWeight: 800, color: '#4f46e5', background: '#eef2ff', padding: '2px 10px', borderRadius: '10px', fontSize: '0.9rem' }}>
+                                            {lesson.homework_grade}/100
+                                        </span>
+                                    </div>
+                                    <p style={{ margin: 0, fontSize: '0.92rem', color: '#475569', lineHeight: 1.5 }}>
+                                        {lesson.homework_feedback || "Молодець! Чудова робота."}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Path Timeline */}
                 {coursePath.length > 0 && (
                     <div style={{ position: 'relative', marginLeft: '4px', marginBottom: '3rem' }}>
-
-                        {/* Background continuous line - perfectly centered inside the 32px left column */}
                         <div className="animate-line" style={{
                             position: 'absolute', top: '16px', bottom: '24px', left: '15px',
                             width: '3px', backgroundColor: '#e2e8f0', borderRadius: '4px', zIndex: 0
@@ -156,8 +197,6 @@ const Home: React.FC = () => {
 
                             return (
                                 <div key={lesson.id} style={{ display: 'flex', gap: '16px', position: 'relative', paddingBottom: idx === coursePath.length - 1 ? 0 : '2.5rem' }}>
-
-                                    {/* Timeline dot column */}
                                     <div style={{ width: '32px', flexShrink: 0, display: 'flex', justifyContent: 'center', paddingTop: '16px', zIndex: 2 }}>
                                         <div className={isUnlocked ? "animate-pop-active" : "animate-pop"} style={{
                                             animationDelay: dotDelay, opacity: 0,
@@ -181,11 +220,7 @@ const Home: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* Lesson Card Wrapper */}
-                                    <div
-                                        className="animate-fade-in"
-                                        style={{ animationDelay: cardDelay, opacity: 0, flex: 1 }}
-                                    >
+                                    <div className="animate-fade-in" style={{ animationDelay: cardDelay, opacity: 0, flex: 1 }}>
                                         <div
                                             onClick={() => (isCompleted || isUnlocked) && navigate(`/lesson/${lesson.id}`)}
                                             style={{
@@ -195,31 +230,28 @@ const Home: React.FC = () => {
                                                 border: isUnlocked ? '2px solid #7c3aed' : (isLocked ? '1px dashed #cbd5e1' : '1px solid rgba(0,0,0,0.04)'),
                                                 cursor: (isCompleted || isUnlocked) ? 'pointer' : 'default',
                                                 filter: isLocked ? 'opacity(0.6) grayscale(0.2)' : 'none',
-                                                position: 'relative', overflow: 'hidden',
                                                 transition: 'box-shadow 0.2s'
                                             }}>
-
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div style={{ flex: 1, paddingRight: '1rem' }}>
-                                                    <p style={{
-                                                        margin: '0 0 4px', fontSize: '0.72rem', fontWeight: 800,
-                                                        color: isCompleted ? '#059669' : isUnlocked ? '#7c3aed' : '#94a3b8',
-                                                        textTransform: 'uppercase', letterSpacing: '0.8px'
-                                                    }}>
-                                                        Урок {idx + 1}
-                                                    </p>
-                                                    <h4 style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: '1.2rem', fontWeight: 800, color: isLocked ? '#64748b' : '#0f172a', lineHeight: 1.3 }}>
-                                                        {lesson.title}
-                                                    </h4>
+                                                <div>
+                                                    <p style={{ margin: '0 0 4px', fontSize: '0.72rem', fontWeight: 800, color: isCompleted ? '#059669' : isUnlocked ? '#7c3aed' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px' }}>Урок {idx + 1}</p>
+                                                    <h4 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: isLocked ? '#64748b' : '#0f172a' }}>{lesson.title}</h4>
                                                 </div>
-
                                                 <div style={{ flexShrink: 0 }}>
-                                                    {isCompleted && <div style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #10b981', padding: '6px 14px', borderRadius: '99px', fontSize: '0.8rem', fontWeight: 600 }}>Пройдено</div>}
-                                                    {isUnlocked && <div style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: 'white', padding: '8px 20px', borderRadius: '99px', fontSize: '0.9rem', fontWeight: 700, boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)' }}>Почати</div>}
+                                                    {isCompleted && (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                                            <div style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #10b981', padding: '6px 14px', borderRadius: '99px', fontSize: '0.8rem', fontWeight: 600 }}>Пройдено</div>
+                                                            {lesson.completed_at && getReplayTimeLeft(lesson.completed_at) && (
+                                                                <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
+                                                                    Повтор за {getReplayTimeLeft(lesson.completed_at)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {isUnlocked && <div style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', color: 'white', padding: '8px 20px', borderRadius: '99px', fontSize: '0.9rem', fontWeight: 700 }}>Почати</div>}
                                                     {isLocked && (
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', padding: '6px 14px', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600 }}>
-                                                            <span style={{ fontSize: '0.9rem' }}>🔒</span>
-                                                            {lesson.unlocks_at ? formatTimeLeft(lesson.unlocks_at) : 'Заблоковано'}
+                                                            <span>🔒</span> {lesson.unlocks_at ? formatTimeLeft(lesson.unlocks_at) : 'Заблоковано'}
                                                         </div>
                                                     )}
                                                 </div>
@@ -234,30 +266,22 @@ const Home: React.FC = () => {
 
                 {/* Quick actions */}
                 <div className="animate-fade-in" style={{ animationDelay: '0.6s', opacity: 0 }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 1.25rem', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>Навчання</h2>
+                    <h2 style={{ margin: '0 0 1.25rem', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Навчання</h2>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1.25rem', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.02)', cursor: 'pointer' }}
                             onClick={() => navigate('/dictionary')}>
-                            <div style={{ width: 56, height: 56, background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.5)' }}>📖</div>
+                            <div style={{ width: 56, height: 56, background: '#dbeafe', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>📖</div>
                             <div>
-                                <h3 style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>Мій Словник</h3>
-                                <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>Усі вивчені слова</p>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>Мій Словник</h3>
+                                <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: '#64748b' }}>Усі вивчені слова</p>
                             </div>
                         </div>
                         <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1.25rem', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.02)', cursor: 'pointer' }}
                             onClick={() => navigate('/flashcards')}>
-                            <div style={{ width: 56, height: 56, background: 'linear-gradient(135deg, #fef3c7, #fde68a)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.5)' }}>🃏</div>
+                            <div style={{ width: 56, height: 56, background: '#fef3c7', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>🃏</div>
                             <div>
-                                <h3 style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>Флеш-картки</h3>
-                                <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>Тренуй лексику</p>
-                            </div>
-                        </div>
-                        <div style={{ backgroundColor: 'white', borderRadius: '20px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1.25rem', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.02)', cursor: 'pointer' }}
-                            onClick={() => navigate('/chat')}>
-                            <div style={{ width: 56, height: 56, background: 'linear-gradient(135deg, #f3e8ff, #e9d5ff)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.5)' }}>💬</div>
-                            <div>
-                                <h3 style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>Чат з викладачем</h3>
-                                <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: '#64748b', fontWeight: 500 }}>Отримай зворотній зв'язок</p>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>Флеш-картки</h3>
+                                <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: '#64748b' }}>Тренуй лексику</p>
                             </div>
                         </div>
                     </div>

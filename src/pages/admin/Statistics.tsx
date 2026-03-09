@@ -8,6 +8,9 @@ interface Stats {
     completedLessons: number;
     pendingHomework: number;
     activeToday: number;
+    totalWordsLearned: number;
+    totalFlashcards: number;
+    totalSubmissions: number;
 }
 
 interface Homework {
@@ -117,20 +120,30 @@ const Statistics: React.FC = () => {
                 {/* Stats Grid */}
                 {stats && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2.5rem' }}>
-                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.02)' }}>
+                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
                             <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>👨‍🎓</div>
                             <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.totalUsers}</h3>
                             <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Студентів</p>
                         </div>
-                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.02)' }}>
+                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
                             <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🔥</div>
                             <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.activeToday}</h3>
                             <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Активно сьогодні</p>
                         </div>
-                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.02)' }}>
-                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>✅</div>
-                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.completedLessons}</h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Пройдено уроків</p>
+                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>📖</div>
+                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.totalWordsLearned}</h3>
+                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Слів у словниках</p>
+                        </div>
+                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🃏</div>
+                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.totalFlashcards}</h3>
+                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Флеш-карток</p>
+                        </div>
+                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>📤</div>
+                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.totalSubmissions}</h3>
+                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Всього здано ДЗ</p>
                         </div>
                         <div style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 8px 20px rgba(124, 58, 237, 0.2)' }}>
                             <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>📝</div>
@@ -178,7 +191,11 @@ const Statistics: React.FC = () => {
                                 </p>
                                 <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                                     {hw.file_url && <span style={{ background: '#eff6ff', color: '#3b82f6', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>Має файл</span>}
-                                    <span style={{ background: '#fef2f2', color: '#ef4444', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>Потребує оцінки</span>
+                                    {hw.status === 'graded' ? (
+                                        <span style={{ background: '#d1fae5', color: '#059669', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>✓ Перевірено</span>
+                                    ) : (
+                                        <span style={{ background: '#fef2f2', color: '#ef4444', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>Потребує оцінки</span>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -224,7 +241,7 @@ const Statistics: React.FC = () => {
                             )}
 
                             {selectedHW.file_url && (
-                                <a href={`${API}${selectedHW.file_url}`} download={selectedHW.file_name} target="_blank" rel="noopener noreferrer" style={{
+                                <a href={`${API}${selectedHW.file_url}?name=${encodeURIComponent(selectedHW.file_name)}`} download={selectedHW.file_name} target="_blank" rel="noopener noreferrer" style={{
                                     display: 'flex', alignItems: 'center', gap: '12px', marginTop: '1rem',
                                     padding: '1rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px',
                                     textDecoration: 'none', color: '#0f172a', fontWeight: 600, boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
