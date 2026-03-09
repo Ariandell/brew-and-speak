@@ -171,13 +171,33 @@ async function initDB() {
   `);
 
     // Migration for homework_submissions to add grading columns if they don't exist
+    // Each ALTER is in its own try/catch so one failure doesn't block the others
+    try { await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN grade INTEGER"); } catch { }
+    try { await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN feedback TEXT"); } catch { }
+    try { await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN status TEXT DEFAULT 'pending'"); } catch { }
+    try { await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN updated_at DATETIME"); } catch { }
+
+    // Backfill any rows that have NULL status (created before the migration)
     try {
-      await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN grade INTEGER");
-      await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN feedback TEXT");
-      await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN status TEXT DEFAULT 'pending'");
-      await dbRaw.execute("ALTER TABLE homework_submissions ADD COLUMN updated_at DATETIME");
+      await dbRaw.execute("UPDATE homework_submissions SET status = 'pending' WHERE status IS NULL");
+      console.log('Backfilled NULL homework statuses to pending');
     } catch (e) {
-      // Ignore if columns already exist
+      console.error('Failed to backfill homework statuses:', e);
+    }
+
+    // Verify tables exist
+    try {
+      const pmCount = await dbRaw.execute('SELECT COUNT(*) as c FROM photo_messages');
+      console.log(`photo_messages table exists, ${pmCount.rows[0]?.c || 0} rows`);
+    } catch (e) {
+      console.error('photo_messages table check failed:', e);
+    }
+
+    try {
+      const hwCount = await dbRaw.execute('SELECT COUNT(*) as c FROM homework_submissions');
+      console.log(`homework_submissions table exists, ${hwCount.rows[0]?.c || 0} rows`);
+    } catch (e) {
+      console.error('homework_submissions table check failed:', e);
     }
 
   } catch (error) {

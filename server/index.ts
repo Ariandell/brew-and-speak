@@ -374,7 +374,7 @@ app.get('/api/lessons/:id', async (req, res) => {
         const lesson = await db.prepare('SELECT * FROM lessons WHERE id = ?').get(req.params.id);
         if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
 
-        const blocks = await db.prepare('SELECT * FROM lesson_blocks WHERE lesson_id = ? ORDER BY "order" ASC').all();
+        const blocks = await db.prepare('SELECT * FROM lesson_blocks WHERE lesson_id = ? ORDER BY "order" ASC').all(req.params.id);
         const flashcards = await db.prepare('SELECT * FROM flashcards WHERE lesson_id = ?').all(req.params.id);
 
         const parsedBlocks = blocks.map((b: any) => ({
@@ -449,6 +449,8 @@ app.get('/api/photo-messages/pending/:userId', async (req, res) => {
         const user = await db.prepare(`SELECT id FROM users WHERE telegram_id = ?`).get(userId);
         const internalId = user ? user.id : userId;
 
+        console.log(`Fetching pending photo messages for user ${userId} (internal: ${internalId})`);
+
         const messages = await db.prepare(`
             SELECT pm.* FROM photo_messages pm
             WHERE pm.id NOT IN (
@@ -456,8 +458,10 @@ app.get('/api/photo-messages/pending/:userId', async (req, res) => {
             )
             ORDER BY pm.created_at ASC
         `).all(internalId);
-        res.json(messages);
+        console.log(`Found ${(messages || []).length} pending photo messages for user ${userId}`);
+        res.json(messages || []);
     } catch (error) {
+        console.error('Failed to fetch pending messages:', error);
         res.status(500).json({ error: 'Failed to fetch pending messages' });
     }
 });
@@ -695,10 +699,12 @@ app.get('/api/admin/homework', async (req, res) => {
             FROM homework_submissions h
             JOIN lessons l ON h.lesson_id = l.id
             JOIN users u ON h.user_id = u.id
-            WHERE h.status = 'pending' 
+            WHERE h.status IS NULL
+               OR h.status = 'pending' 
                OR h.updated_at > datetime('now', '-24 hours')
             ORDER BY h.submitted_at DESC
         `).all();
+        console.log(`Admin homework query returned ${(homework || []).length} items`);
         res.json(homework || []);
     } catch (error) {
         console.error('Failed to fetch admin homework:', error);
