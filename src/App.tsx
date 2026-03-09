@@ -48,7 +48,7 @@ function App() {
             <Route path="/admin/lesson/:id" element={<LessonEditor />} />
             <Route path="/admin/photo-messages" element={<PhotoMessageEditor />} />
             <Route path="/admin/chat" element={<ChatAdmin />} />
-            <Route path="/admin/stats" element={<Statistics />} />
+            <Route path="/admin/homework" element={<Statistics />} />
         </Routes>
     );
 }

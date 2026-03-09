@@ -117,7 +117,15 @@ app.post('/api/users/:userId/enroll', async (req, res) => {
 // Get a student's enrolled course
 app.get('/api/users/:userId/enrollment', async (req, res) => {
     try {
-        const user = await db.prepare(`SELECT id, enrolled_course_id FROM users WHERE telegram_id = ?`).get(req.params.userId);
+        const telegramId = req.params.userId.toString();
+
+        // Ensure user exists in case `/sync` hasn't finished yet (race condition)
+        await db.prepare(`
+            INSERT INTO users (telegram_id, name) VALUES (?, ?)
+            ON CONFLICT(telegram_id) DO NOTHING
+        `).run(telegramId, 'Unknown Student');
+
+        const user = await db.prepare(`SELECT id, enrolled_course_id FROM users WHERE telegram_id = ?`).get(telegramId);
         if (!user || !user.enrolled_course_id) return res.json({ courseId: null });
 
         const course = await db.prepare(`
@@ -139,6 +147,7 @@ app.get('/api/users/:userId/enrollment', async (req, res) => {
             completedLessons: progress ? progress.count : 0
         });
     } catch (error) {
+        console.error('Failed to fetch enrollment:', error);
         res.status(500).json({ error: 'Failed to fetch enrollment' });
     }
 });
@@ -693,20 +702,27 @@ app.get('/api/homework/lesson/:lessonId/user/:userId', async (req, res) => {
 
 
 
-// Admin: get all pending homework OR those graded in the last 24 hours
+// Admin: get all pending or graded homework
 app.get('/api/admin/homework', async (req, res) => {
     try {
-        const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const homework = await db.prepare(`
+        const { status } = req.query;
+
+        let queryStr = `
             SELECT h.*, l.title as lesson_title, u.name as user_name, u.telegram_id 
             FROM homework_submissions h
             JOIN lessons l ON h.lesson_id = l.id
             JOIN users u ON h.user_id = u.id
-            WHERE h.status IS NULL
-               OR h.status = 'pending' 
-               OR h.updated_at > ?
-            ORDER BY h.submitted_at DESC
-        `).all(cutoffDate);
+        `;
+
+        if (status === 'pending') {
+            queryStr += " WHERE h.status IS NULL OR h.status = 'pending'";
+        } else if (status === 'graded') {
+            queryStr += " WHERE h.status = 'graded'";
+        }
+
+        queryStr += " ORDER BY h.submitted_at DESC";
+
+        const homework = await db.prepare(queryStr).all();
         console.log(`Admin homework query returned ${(homework || []).length} items`);
         res.json(homework || []);
     } catch (error) {

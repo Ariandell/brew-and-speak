@@ -29,7 +29,7 @@ interface Homework {
 
 const Statistics: React.FC = () => {
     const navigate = useNavigate();
-    const [stats, setStats] = useState<Stats | null>(null);
+    const [activeTab, setActiveTab] = useState<'pending' | 'graded'>('pending');
     const [homeworkList, setHomeworkList] = useState<Homework[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -39,28 +39,22 @@ const Statistics: React.FC = () => {
     const [feedbackInput, setFeedbackInput] = useState<string>('');
     const [submittingGrade, setSubmittingGrade] = useState(false);
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
-
-    const fetchDashboardData = async () => {
+    const fetchHomeworks = async (status: 'pending' | 'graded') => {
         setLoading(true);
         try {
-            const [statsRes, hwRes] = await Promise.all([
-                fetch(`${API}/api/admin/statistics`),
-                fetch(`${API}/api/admin/homework?status=pending`)
-            ]);
-            const statsData = await statsRes.json();
-            const hwData = await hwRes.json();
-
-            setStats(statsData);
+            const res = await fetch(`${API}/api/admin/homework?status=${status}`);
+            const hwData = await res.json();
             setHomeworkList(Array.isArray(hwData) ? hwData : []);
         } catch (error) {
-            console.error(error);
+            console.error('Failed to fetch homework:', error);
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchHomeworks(activeTab);
+    }, [activeTab]);
 
     const handleGradeSubmit = async () => {
         if (!selectedHW) return;
@@ -76,7 +70,7 @@ const Statistics: React.FC = () => {
             });
             // Close modal and refresh list
             setSelectedHW(null);
-            fetchDashboardData();
+            fetchHomeworks(activeTab);
         } catch (error) {
             console.error('Failed to submit grade', error);
         } finally {
@@ -90,7 +84,7 @@ const Statistics: React.FC = () => {
         setFeedbackInput(hw.feedback || '');
     };
 
-    if (loading && !stats) {
+    if (loading && homeworkList.length === 0) {
         return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Завантаження...</div>;
     }
 
@@ -112,59 +106,55 @@ const Statistics: React.FC = () => {
                     <button onClick={() => navigate('/admin')} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.9rem', padding: 0, cursor: 'pointer', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span>←</span> Назад
                     </button>
-                    <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>Статистика</h1>
+                    <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>Домашні завдання</h1>
                 </div>
             </header>
 
             <div style={{ padding: '1.5rem' }}>
-                {/* Stats Grid */}
-                {stats && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2.5rem' }}>
-                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>👨‍🎓</div>
-                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.totalUsers}</h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Студентів</p>
-                        </div>
-                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🔥</div>
-                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.activeToday}</h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Активно сьогодні</p>
-                        </div>
-                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>📖</div>
-                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.totalWordsLearned}</h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Слів у словниках</p>
-                        </div>
-                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🃏</div>
-                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.totalFlashcards}</h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Флеш-карток</p>
-                        </div>
-                        <div style={{ background: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>📤</div>
-                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>{stats.totalSubmissions}</h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Всього здано ДЗ</p>
-                        </div>
-                        <div style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', padding: '1.2rem', borderRadius: '20px', boxShadow: '0 8px 20px rgba(124, 58, 237, 0.2)' }}>
-                            <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>📝</div>
-                            <h3 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 800 }}>{stats.pendingHomework}</h3>
-                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', opacity: 0.9, fontWeight: 600, textTransform: 'uppercase' }}>ДЗ на перевірку</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Pending Homework List */}
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    Очікують перевірки
-                    {homeworkList.length > 0 && (
-                        <span style={{ background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '99px', fontSize: '0.75rem' }}>{homeworkList.length}</span>
-                    )}
-                </h2>
+                {/* Tabs */}
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+                    <button
+                        onClick={() => setActiveTab('pending')}
+                        style={{
+                            padding: '0.8rem 1rem',
+                            background: 'none',
+                            border: 'none',
+                            borderBottom: activeTab === 'pending' ? '2px solid #4f46e5' : '2px solid transparent',
+                            color: activeTab === 'pending' ? '#4f46e5' : '#64748b',
+                            fontWeight: activeTab === 'pending' ? 700 : 500,
+                            cursor: 'pointer',
+                            fontSize: '1rem',
+                            flex: 1,
+                            textAlign: 'center'
+                        }}
+                    >
+                        Очікують перевірки
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('graded')}
+                        style={{
+                            padding: '0.8rem 1rem',
+                            background: 'none',
+                            border: 'none',
+                            borderBottom: activeTab === 'graded' ? '2px solid #4f46e5' : '2px solid transparent',
+                            color: activeTab === 'graded' ? '#4f46e5' : '#64748b',
+                            fontWeight: activeTab === 'graded' ? 700 : 500,
+                            cursor: 'pointer',
+                            fontSize: '1rem',
+                            flex: 1,
+                            textAlign: 'center'
+                        }}
+                    >
+                        Перевірені
+                    </button>
+                </div>
 
                 {homeworkList.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'white', borderRadius: '24px', border: '1px dashed #cbd5e1' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem', opacity: 0.5 }}>☕</div>
-                        <p style={{ margin: 0, color: '#64748b', fontWeight: 500 }}>Усі домашні завдання перевірено!</p>
+                        <p style={{ margin: 0, color: '#64748b', fontWeight: 500 }}>
+                            {activeTab === 'pending' ? 'Усі домашні завдання перевірено!' : 'Немає перевірених домашніх завдань.'}
+                        </p>
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../components/ui/BottomNav';
 import { CircularProgress } from '../components/ui/CircularProgress';
 import { EnvelopeOverlay } from '../components/EnvelopeOverlay';
-import { useUserId } from '../components/TelegramProvider';
+import { useUserId, useTelegram } from '../components/TelegramProvider';
 
 const API = '';
 
 const Home: React.FC = () => {
     const navigate = useNavigate();
+    const { ready } = useTelegram();
     const USER_ID = useUserId();
     const [pendingPhotos, setPendingPhotos] = useState<any[]>([]);
     const [showEnvelope, setShowEnvelope] = useState(false);
@@ -25,7 +26,7 @@ const Home: React.FC = () => {
     const [enrollmentChecked, setEnrollmentChecked] = useState(false); // true = API responded successfully
 
     useEffect(() => {
-        if (!USER_ID) return;
+        if (!ready || !USER_ID) return;
 
         setLoading(true);
         // Check enrollment from API
@@ -119,7 +120,7 @@ const Home: React.FC = () => {
         return hours > 0 ? `${hours}г ${minutes}хв` : `${minutes}хв`;
     };
 
-    if (checkingEnrollment) return null;
+    if (!ready || checkingEnrollment) return null;
 
     // Only redirect to /courses if API SUCCESSFULLY confirmed no enrollment
     // (not if API failed due to cold start / network error)
