@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../components/ui/BottomNav';
 import { CircularProgress } from '../components/ui/CircularProgress';
 import { EnvelopeOverlay } from '../components/EnvelopeOverlay';
-import { useUserId, useTelegram } from '../components/TelegramProvider';
+import { useUserId, useTelegram, useIsAdmin } from '../components/TelegramProvider';
 
 const API = '';
 
@@ -11,6 +11,7 @@ const Home: React.FC = () => {
     const navigate = useNavigate();
     const { ready } = useTelegram();
     const USER_ID = useUserId();
+    const isAdmin = useIsAdmin();
     const [pendingPhotos, setPendingPhotos] = useState<any[]>([]);
     const [showEnvelope, setShowEnvelope] = useState(false);
     const [enrollment, setEnrollment] = useState<any>(() => {
@@ -222,8 +223,9 @@ const Home: React.FC = () => {
 
                         {coursePath.map((lesson, idx) => {
                             const isCompleted = lesson.status === 'completed';
-                            const isUnlocked = lesson.status === 'unlocked';
-                            const isLocked = lesson.status === 'locked';
+                            // Teachers preview any lesson — never show them drip locks
+                            const isUnlocked = lesson.status === 'unlocked' || (isAdmin && lesson.status === 'locked');
+                            const isLocked = lesson.status === 'locked' && !isAdmin;
                             const delayBase = 0.2 + idx * 0.15;
                             const cardDelay = `${delayBase}s`;
                             const dotDelay = `${delayBase + 0.1}s`;
@@ -274,7 +276,7 @@ const Home: React.FC = () => {
                                                     {isCompleted && (
                                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                                                             <div style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #10b981', padding: '6px 14px', borderRadius: '99px', fontSize: '0.8rem', fontWeight: 600 }}>Пройдено</div>
-                                                            {lesson.completed_at && getReplayTimeLeft(lesson.completed_at) && (
+                                                            {!isAdmin && lesson.completed_at && getReplayTimeLeft(lesson.completed_at) && (
                                                                 <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                                                                     Повтор за {getReplayTimeLeft(lesson.completed_at)}
                                                                 </span>

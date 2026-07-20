@@ -12,6 +12,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Telegram usernames that get the 'teacher' role on sync (must match useIsAdmin on the frontend)
+const ADMIN_USERNAMES = ['olia16', 'ariandel21', 'demo_user'];
+
 // Serve static frontend in production
 const distDir = resolve(__dirname, '../dist');
 if (existsSync(distDir)) {
@@ -83,10 +86,11 @@ app.post('/api/users/sync', async (req, res) => {
 
         // Upsert user to ensure they exist in DB
         // If they already exist, we just update their name/username in case it changed
+        const role = ADMIN_USERNAMES.includes((username || '').toLowerCase()) ? 'teacher' : 'student';
         await db.prepare(`
-            INSERT INTO users (telegram_id, name) VALUES (?, ?)
-            ON CONFLICT(telegram_id) DO UPDATE SET name = ?
-        `).run(id.toString(), name, name);
+            INSERT INTO users (telegram_id, name, role) VALUES (?, ?, ?)
+            ON CONFLICT(telegram_id) DO UPDATE SET name = ?, role = ?
+        `).run(id.toString(), name, role, name, role);
 
         res.json({ success: true });
     } catch (error) {
@@ -177,8 +181,9 @@ app.get('/api/courses/:courseId/path/:userId', async (req, res) => {
     try {
         const { courseId, userId } = req.params;
 
-        const user = await db.prepare(`SELECT id FROM users WHERE telegram_id = ?`).get(userId);
+        const user = await db.prepare(`SELECT id, role FROM users WHERE telegram_id = ?`).get(userId);
         const internalId = user ? user.id : userId; // Fallback for local dev if missing
+        const isTeacher = user?.role === 'teacher';
 
         const lessons = await db.prepare('SELECT * FROM lessons WHERE level_id = ? ORDER BY "order" ASC').all(courseId);
         const progressList = await db.prepare('SELECT * FROM user_progress WHERE user_id = ?').all(internalId);
@@ -215,6 +220,12 @@ app.get('/api/courses/:courseId/path/:userId', async (req, res) => {
                 }
             } else if (idx === 0 && !hasAnyProgress) {
                 status = 'unlocked';
+            }
+
+            // Teachers preview any lesson freely — no drip locks or timers
+            if (isTeacher && status === 'locked') {
+                status = 'unlocked';
+                unlocksAt = null;
             }
 
             const hw = hwMap[lesson.id];
@@ -298,16 +309,17 @@ app.post('/api/lessons/:lessonId/finish', async (req, res) => {
         const { userId, needsTeacherReview, score = 10, timeSpent = 60 } = req.body;
         const lessonId = req.params.lessonId;
 
-        const user = await db.prepare(`SELECT id FROM users WHERE telegram_id = ?`).get(userId);
+        const user = await db.prepare(`SELECT id, role FROM users WHERE telegram_id = ?`).get(userId);
         if (!user) return res.status(404).json({ error: 'User not found' });
         const internalId = user.id;
+        const isTeacher = user.role === 'teacher';
 
-        // --- Cooldown Logic ---
+        // --- Cooldown Logic (teachers can re-take lessons anytime) ---
         const existingProgress = await db.prepare(
             "SELECT completed_at FROM user_progress WHERE user_id = ? AND lesson_id = ? AND status = 'completed'"
         ).get(internalId, lessonId);
 
-        if (existingProgress && existingProgress.completed_at) {
+        if (!isTeacher && existingProgress && existingProgress.completed_at) {
             const lastCompRaw = existingProgress.completed_at;
             const lastCompleted = new Date(typeof lastCompRaw === 'number' || typeof lastCompRaw === 'string' ? lastCompRaw : String(lastCompRaw));
             const now = new Date();
@@ -354,12 +366,19 @@ app.post('/api/lessons/:lessonId/finish', async (req, res) => {
         `).get(currentLesson.level_id, currentLesson.order);
 
         if (nextLesson) {
-            // Create lock entry for the next lesson (drip content 24h). 
+            // Create lock entry for the next lesson (drip content 24h; teachers get it unlocked at once).
             // Use INSERT OR IGNORE so re-taking old lessons doesn't crash or re-lock unlocked stuff.
-            await db.prepare(`
-                 INSERT OR IGNORE INTO user_progress (user_id, lesson_id, status, unlocks_at) 
-                 VALUES (?, ?, 'locked', datetime('now', '+24 hours'))
-             `).run(internalId, nextLesson.id);
+            if (isTeacher) {
+                await db.prepare(`
+                     INSERT OR IGNORE INTO user_progress (user_id, lesson_id, status)
+                     VALUES (?, ?, 'unlocked')
+                 `).run(internalId, nextLesson.id);
+            } else {
+                await db.prepare(`
+                     INSERT OR IGNORE INTO user_progress (user_id, lesson_id, status, unlocks_at)
+                     VALUES (?, ?, 'locked', datetime('now', '+24 hours'))
+                 `).run(internalId, nextLesson.id);
+            }
         }
 
         res.json({ success: true, nextLessonId: nextLesson?.id });
