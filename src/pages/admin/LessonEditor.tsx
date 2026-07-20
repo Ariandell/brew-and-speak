@@ -24,7 +24,7 @@ const defaultContent = (type: BlockType): any => {
         case 'text': return { body: '' };
         case 'quiz': return { question: '', options: [{ label: '', isCorrect: true }, { label: '', isCorrect: false }] };
         case 'word_order': return { prompt: 'Склади правильне речення:', sentence: '' };
-        case 'fill_blank': return { prompt: 'Вstavте пропущене слово:', sentence: 'Я ___ студент.', answer: '', options: [] };
+        case 'fill_blank': return { prompt: 'Вставте пропущене слово:', sentence: 'Я ___ студент.', answer: '', options: [] };
         case 'match_pairs': return { prompt: 'Знайдіть пари:', pairs: [{ word: '', translation: '' }] };
         case 'true_false': return { statement: '', isTrue: true };
         case 'audio': return { audioUrl: '', caption: '' };
@@ -181,7 +181,12 @@ const LessonEditor: React.FC = () => {
                                             <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>ПРАВИЛЬНА ВІДПОВІДЬ</label>
                                             <input value={block.content.answer} onChange={e => updateBlock(block.id, { answer: e.target.value })} placeholder="Напр: am" style={inputStyle} />
                                             <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>ВАРІАНТИ ВІДПОВІДЕЙ (через кому)</label>
-                                            <input value={(block.content.options || []).join(', ')} onChange={e => updateBlock(block.id, { options: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })} placeholder="am, is, are, be" style={inputStyle} />
+                                            <input value={block.content.optionsText ?? (block.content.options || []).join(', ')} onChange={e => updateBlock(block.id, { optionsText: e.target.value, options: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })} placeholder="am, is, are, be" style={inputStyle} />
+                                            {(block.content.options || []).length > 0 && (
+                                                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '8px 12px', fontSize: '0.82rem', color: '#888' }}>
+                                                    Варіанти: {(block.content.options || []).join(' | ')}
+                                                </div>
+                                            )}
                                         </>
                                     )}
 
