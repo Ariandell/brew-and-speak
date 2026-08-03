@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toPlainText } from '../../utils/plainText';
 
 const API = '';
 
@@ -177,7 +178,7 @@ const Statistics: React.FC = () => {
                                     margin: 0, fontSize: '0.9rem', color: '#475569',
                                     display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
                                 }}>
-                                    {hw.text || (hw.file_name ? `📎 Вкладений файл: ${hw.file_name}` : 'Без тексту')}
+                                    {toPlainText(hw.text) || (hw.file_name ? `📎 Вкладений файл: ${hw.file_name}` : 'Без тексту')}
                                 </p>
                                 <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                                     {hw.file_url && <span style={{ background: '#eff6ff', color: '#3b82f6', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>Має файл</span>}
@@ -222,7 +223,7 @@ const Statistics: React.FC = () => {
                             <h4 style={{ margin: '0 0 8px', fontSize: '0.9rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Відповідь:</h4>
                             {selectedHW.text ? (
                                 <div style={{ background: '#f1f5f9', padding: '1rem', borderRadius: '16px', fontSize: '0.95rem', lineHeight: 1.5, color: '#1e293b', whiteSpace: 'pre-wrap' }}>
-                                    {selectedHW.text}
+                                    {toPlainText(selectedHW.text)}
                                 </div>
                             ) : (
                                 <div style={{ padding: '1rem', border: '1px dashed #cbd5e1', borderRadius: '16px', color: '#94a3b8', textAlign: 'center', fontSize: '0.9rem' }}>

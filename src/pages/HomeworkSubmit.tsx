@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useUserId } from '../components/TelegramProvider';
+import { toPlainText } from '../utils/plainText';
 
 const API = '';
 
@@ -36,7 +37,7 @@ const HomeworkSubmit: React.FC = () => {
             const formData = new FormData();
             formData.append('lesson_id', lessonId || '');
             formData.append('user_id', USER_ID);
-            formData.append('text', text);
+            formData.append('text', toPlainText(text));
             if (file) formData.append('file', file);
 
             const xhr = new XMLHttpRequest();
@@ -118,7 +119,9 @@ const HomeworkSubmit: React.FC = () => {
                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#888', marginBottom: '8px' }}>ТЕКСТОВА ВІДПОВІДЬ</label>
                     <textarea
                         value={text}
-                        onChange={e => setText(e.target.value)}
+                        // toPlainText only rewrites the value when pasted markup is
+                        // actually present, so ordinary typing is left untouched.
+                        onChange={e => setText(toPlainText(e.target.value))}
                         placeholder="Напишіть вашу відповідь тут..."
                         rows={5}
                         style={{ width: '100%', border: 'none', outline: 'none', fontFamily: 'inherit', fontSize: '0.95rem', resize: 'vertical', color: '#1a1a2e', boxSizing: 'border-box', background: 'transparent' }}
