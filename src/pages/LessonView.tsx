@@ -100,7 +100,7 @@ const WordOrderBlock: React.FC<{ content: any }> = ({ content }) => {
                 {remaining.map((w, i) => (
                     <button key={i} onClick={() => addWord(w, i)} style={{
                         padding: '8px 14px', backgroundColor: 'white', border: '1px solid #e2e8f0',
-                        borderRadius: '10px', cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: '0.95rem'
+                        borderRadius: '10px', cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: '0.95rem', color: '#1a1a2e'
                     }}>{w}</button>
                 ))}
             </div>
@@ -171,7 +171,7 @@ const FillBlankBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ co
                         <button key={i} onClick={() => choose(opt)} style={{
                             padding: '10px 18px', border: `2px solid ${showRight ? '#10b981' : showWrong ? '#ef4444' : isSelected ? 'var(--color-primary)' : '#e2e8f0'}`,
                             borderRadius: '12px', background: showRight ? '#d1fae5' : showWrong ? '#fee2e2' : isSelected ? '#ede9fe' : 'white',
-                            cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontWeight: 600
+                            cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#1a1a2e'
                         }}>{opt}</button>
                     );
                 })}
@@ -205,7 +205,7 @@ const TrueFalseBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ co
                         <button key={String(val)} onClick={() => choose(val)} style={{
                             flex: 1, padding: '14px', border: `2px solid ${showRight ? '#10b981' : showWrong ? '#ef4444' : isSelected ? 'var(--color-primary)' : '#e2e8f0'}`,
                             borderRadius: '14px', background: showRight ? '#d1fae5' : showWrong ? '#fee2e2' : isSelected ? '#ede9fe' : 'white',
-                            cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '1rem'
+                            cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: '1rem', color: '#1a1a2e'
                         }}>{label}</button>
                     );
                 })}
@@ -254,7 +254,7 @@ const MatchPairsBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ c
                         <button key={i} onClick={() => selectLeft(i)} style={{
                             padding: '10px', border: `2px solid ${matched[i] !== undefined ? '#10b981' : leftSelected === i ? 'var(--color-primary)' : '#e2e8f0'}`,
                             borderRadius: '10px', background: matched[i] !== undefined ? '#d1fae5' : leftSelected === i ? '#ede9fe' : 'white',
-                            cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.9rem'
+                            cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.9rem', color: '#1a1a2e'
                         }}>{p.word}</button>
                     ))}
                 </div>
@@ -263,7 +263,7 @@ const MatchPairsBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ c
                         <button key={rightIdx} onClick={() => selectRight(rightIdx)} style={{
                             padding: '10px', border: `2px solid ${isMatchedRight(rightIdx) ? '#10b981' : wrong === rightIdx ? '#ef4444' : '#e2e8f0'}`,
                             borderRadius: '10px', background: isMatchedRight(rightIdx) ? '#d1fae5' : wrong === rightIdx ? '#fee2e2' : 'white',
-                            cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: '0.9rem'
+                            cursor: answered ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: '0.9rem', color: '#1a1a2e'
                         }}>{pairs[pairIdx].translation}</button>
                     ))}
                 </div>

@@ -38,10 +38,13 @@ const defaultContent = (type: BlockType): any => {
     }
 };
 
+// color is set explicitly: without it fields fall back to the system text
+// colour, which turns near-white when the device is in dark mode - the teacher
+// would be typing into what looks like an empty box.
 const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px',
     fontSize: '0.95rem', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none',
-    background: '#fafafa', resize: 'vertical' as 'vertical'
+    background: '#fafafa', color: '#1a1a2e', resize: 'vertical' as 'vertical'
 };
 
 const warningStyle: React.CSSProperties = {

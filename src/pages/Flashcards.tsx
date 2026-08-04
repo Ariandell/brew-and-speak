@@ -221,17 +221,19 @@ const Flashcards: React.FC = () => {
                     </div>
                 ) : (
                     <>
-                        {/* Mascot reacting to the last answer, peeking above the card */}
-                        <div style={{
-                            position: 'relative', width: '100%', maxWidth: 380,
-                            display: 'flex', justifyContent: 'flex-end', pointerEvents: 'none',
-                            marginBottom: '-2.5rem', zIndex: 5,
-                        }}>
-                            <MascotAnimated mood={mascotMood} size={200} style={{ marginRight: '-20px' }} />
-                        </div>
-
                         {/* SWIPEABLE CARD */}
                         <div style={{ position: 'relative', width: '100%', maxWidth: 380, height: 320, marginBottom: '1.5rem', perspective: '1200px' }}>
+                            {/* Peeking over the card's top-right corner. Kept inside the
+                                card's own width so it cannot widen the page. */}
+                            <div style={{
+                                position: 'absolute', top: -128, right: 4, zIndex: 20,
+                                pointerEvents: 'none', transition: 'transform 0.3s ease',
+                                transform: mascotMood === 'happy' ? 'scale(1.05)' : mascotMood === 'sad' ? 'scale(0.95)' : 'scale(1)',
+                                transformOrigin: 'bottom center',
+                            }}>
+                                <MascotAnimated mood={mascotMood} size={300} />
+                            </div>
+
                             {/* Swipe feedback overlays */}
                             <div style={{
                                 position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)',

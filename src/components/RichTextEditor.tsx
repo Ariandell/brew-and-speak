@@ -88,7 +88,7 @@ export const RichTextEditor: React.FC<Props> = ({ value, onChange, placeholder, 
                     style={{
                         minHeight, width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0',
                         borderRadius: '10px', fontSize: '0.95rem', fontFamily: 'inherit',
-                        boxSizing: 'border-box', outline: 'none', background: '#fafafa',
+                        boxSizing: 'border-box', outline: 'none', background: '#fafafa', color: '#1a1a2e',
                         lineHeight: 1.6, overflowWrap: 'anywhere',
                     }}
                 />
