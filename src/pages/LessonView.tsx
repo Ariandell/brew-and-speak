@@ -3,14 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { FeedbackBanner } from '../components/ui/FeedbackBanner';
 import { useUserId } from '../components/TelegramProvider';
+import { toPlainText } from '../utils/plainText';
 
 const API = '';
 
 // ─── Block Renderers ───────────────────────────────────────────────────────
 
+// Lesson copy is typed into plain textareas, so any tags in it are markup that
+// came along with a paste. toPlainText leaves tag-free text exactly as written.
 const TextBlock: React.FC<{ content: any }> = ({ content }) => (
     <div style={{ lineHeight: 1.7, fontSize: '1rem', color: '#1a1a2e' }}>
-        <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{content.body}</p>
+        <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{toPlainText(content.body)}</p>
     </div>
 );
 
@@ -20,19 +23,23 @@ const QuizBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ content
     const [selected, setSelected] = useState<number | null>(null);
     const [answered, setAnswered] = useState(false);
 
+    // A half-finished option saved as an empty label renders as an unlabelled
+    // button the student can still pick; drop those rather than show them.
+    const options = (content.options || []).filter((o: any) => String(o?.label ?? '').trim());
+
     const handleSelect = (i: number) => {
         if (answered) return;
         setSelected(i);
         setAnswered(true);
-        if (content.options && !content.options[i].isCorrect && onMistake) {
+        if (!options[i]?.isCorrect && onMistake) {
             onMistake();
         }
     };
     return (
         <div>
-            <p style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem' }}>{content.question}</p>
+            <p style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem' }}>{toPlainText(content.question)}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {content.options?.map((opt: any, i: number) => {
+                {options.map((opt: any, i: number) => {
                     const isSelected = selected === i;
                     const showRight = answered && opt.isCorrect;
                     const showWrong = answered && isSelected && !opt.isCorrect;
@@ -129,28 +136,38 @@ const FillBlankBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ co
     const correctAnswer: string = content.answer || '';
     const options: string[] = content.options || [];
 
+    // The options input trims what the teacher types but the answer input does
+    // not, so an answer saved as " catch " never equalled the "catch" option and
+    // the question could not be answered correctly at all. Compare them trimmed.
+    const isCorrect = (opt: string) => opt.trim() === correctAnswer.trim();
+
     const choose = (opt: string) => {
         if (answered) return;
         setSelected(opt);
         setAnswered(true);
-        if (opt !== correctAnswer && onMistake) {
+        if (!isCorrect(opt) && onMistake) {
             onMistake();
         }
     };
 
-    const displaySentence = sentence.replace('___', selected ? `[${selected}]` : '___');
+    // Teachers mark the gap with however many underscores they feel like ("_",
+    // "__", "___"), so match a run of them rather than exactly three. Sentences
+    // with no underscore at all are shown unchanged - the picked option is still
+    // visible in the buttons below.
+    const answeredCorrectly = selected !== null && isCorrect(selected);
+    const displaySentence = sentence.replace(/_+/, selected ? `[${selected.trim()}]` : '___');
 
     return (
         <div>
             <p style={{ fontWeight: 700, marginBottom: '1rem' }}>{content.prompt || 'Вставте пропущене слово:'}</p>
-            <div style={{ background: answered ? (selected === correctAnswer ? '#d1fae5' : '#fee2e2') : '#faf8ff', border: '2px solid #ddd6fe', borderColor: answered ? (selected === correctAnswer ? '#10b981' : '#ef4444') : '#ddd6fe', borderRadius: '12px', padding: '1rem', marginBottom: '1rem', fontSize: '1.1rem', lineHeight: 1.6 }}>
+            <div style={{ background: answered ? (answeredCorrectly ? '#d1fae5' : '#fee2e2') : '#faf8ff', border: '2px solid #ddd6fe', borderColor: answered ? (answeredCorrectly ? '#10b981' : '#ef4444') : '#ddd6fe', borderRadius: '12px', padding: '1rem', marginBottom: '1rem', fontSize: '1.1rem', lineHeight: 1.6 }}>
                 {displaySentence}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {options.map((opt, i) => {
                     const isSelected = selected === opt;
-                    const showRight = answered && opt === correctAnswer;
-                    const showWrong = answered && isSelected && opt !== correctAnswer;
+                    const showRight = answered && isCorrect(opt);
+                    const showWrong = answered && isSelected && !isCorrect(opt);
                     return (
                         <button key={i} onClick={() => choose(opt)} style={{
                             padding: '10px 18px', border: `2px solid ${showRight ? '#10b981' : showWrong ? '#ef4444' : isSelected ? 'var(--color-primary)' : '#e2e8f0'}`,
@@ -270,7 +287,7 @@ const AudioBlock: React.FC<{ content: any }> = ({ content }) => (
 
 const HomeworkPromptBlock: React.FC<{ content: any; lessonId: string; navigate: any }> = ({ content, lessonId, navigate }) => (
     <div>
-        <p style={{ marginBottom: '1rem', lineHeight: 1.6 }}>{content.prompt}</p>
+        <p style={{ marginBottom: '1rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{toPlainText(content.prompt)}</p>
         <button
             onClick={() => navigate(`/homework/${lessonId}`)}
             style={{
@@ -283,6 +300,49 @@ const HomeworkPromptBlock: React.FC<{ content: any; lessonId: string; navigate: 
         </button>
     </div>
 );
+
+// The mascot's aside to the student. These blocks predate this repository:
+// production has been storing {text, mood} for them since before the first
+// commit, with nothing on this side able to draw them, so they rendered as a
+// blank card. No cat artwork exists in the project, so the mood picks an emoji.
+const MASCOT_MOODS: Record<string, { emoji: string; bg: string; border: string }> = {
+    happy: { emoji: '😺', bg: '#fefce8', border: '#fde047' },
+    perfect: { emoji: '😻', bg: '#f5f3ff', border: '#c4b5fd' },
+    surprised: { emoji: '🙀', bg: '#eff6ff', border: '#93c5fd' },
+    sad: { emoji: '😿', bg: '#f8fafc', border: '#cbd5e1' },
+    idle: { emoji: '😼', bg: '#fff7ed', border: '#fdba74' },
+};
+
+const MascotTipBlock: React.FC<{ content: any }> = ({ content }) => {
+    const mood = MASCOT_MOODS[String(content.mood || '').trim().toLowerCase()] || MASCOT_MOODS.idle;
+    const text = toPlainText(content.text);
+    if (!text) return null;
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{
+                fontSize: '2.2rem', lineHeight: 1, flexShrink: 0,
+                width: 56, height: 56, borderRadius: '50%', background: mood.bg,
+                border: `2px solid ${mood.border}`, display: 'flex',
+                alignItems: 'center', justifyContent: 'center'
+            }}>{mood.emoji}</div>
+            <div style={{
+                position: 'relative', flex: 1, background: mood.bg,
+                border: `2px solid ${mood.border}`, borderRadius: '16px',
+                padding: '0.9rem 1rem', fontSize: '0.98rem', lineHeight: 1.6,
+                color: '#1a1a2e', whiteSpace: 'pre-wrap'
+            }}>
+                {/* Speech-bubble tail pointing back at the mascot */}
+                <span style={{
+                    position: 'absolute', left: -9, top: 18, width: 14, height: 14,
+                    background: mood.bg, borderLeft: `2px solid ${mood.border}`,
+                    borderBottom: `2px solid ${mood.border}`, transform: 'rotate(45deg)'
+                }} />
+                {text}
+            </div>
+        </div>
+    );
+};
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
@@ -386,6 +446,7 @@ const LessonView: React.FC = () => {
                                 </div>
                             )}
                             {block.type === 'homework' && <HomeworkPromptBlock content={block.content} lessonId={id || ''} navigate={navigate} />}
+                            {block.type === 'mascot_tip' && <MascotTipBlock content={block.content} />}
                         </div>
                     );
                 })}
