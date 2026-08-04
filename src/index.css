@@ -512,3 +512,7 @@ h6 {
 @media (prefers-reduced-motion: reduce) {
   .mascot-idle, .mascot-bounce, .mascot-shake { animation: none; }
 }
+
+/* contentEditable needs an explicit list indent; the reset strips it. */
+.rich-editor:focus { border-color: #c4b5fd; background: #fff; }
+.rich-editor ul, .rich-editor ol { padding-left: 1.4em; }

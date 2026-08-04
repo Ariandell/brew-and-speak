@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Mascot, MASCOT_MOODS } from '../../components/Mascot';
+import { RichTextEditor } from '../../components/RichTextEditor';
 
 const API = '';
 
@@ -146,7 +147,7 @@ const LessonEditor: React.FC = () => {
                                 <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
 
                                     {block.type === 'text' && (
-                                        <textarea value={block.content.body} onChange={e => updateBlock(block.id, { body: e.target.value })} placeholder="Введіть пояснення..." rows={4} style={inputStyle} />
+                                        <RichTextEditor value={block.content.body || ''} onChange={html => updateBlock(block.id, { body: html })} placeholder="Введіть пояснення..." />
                                     )}
 
 
@@ -187,7 +188,7 @@ const LessonEditor: React.FC = () => {
                                             <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>РЕЧЕННЯ (позначте пропуск підкресленням: _ або ___)</label>
                                             <input value={block.content.sentence} onChange={e => updateBlock(block.id, { sentence: e.target.value })} placeholder="Напр: I ___ a student." style={inputStyle} />
                                             {block.content.sentence && !/_/.test(block.content.sentence) && (
-                                                <div style={warningStyle}>У реченні немає пропуску — поставте <b>_</b> там, де має бути слово, інакше учень не побачить, куди його вставляти.</div>
+                                                <div style={warningStyle}>Немає пропуску. Поставте <b>_</b> там, де має бути слово.</div>
                                             )}
                                             <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>ПРАВИЛЬНА ВІДПОВІДЬ</label>
                                             <input value={block.content.answer} onChange={e => updateBlock(block.id, { answer: e.target.value })} placeholder="Напр: am" style={inputStyle} />
@@ -203,7 +204,7 @@ const LessonEditor: React.FC = () => {
                                             {(block.content.options || []).length > 0 && String(block.content.answer || '').trim() &&
                                                 !(block.content.options || []).some((o: string) => o.trim() === String(block.content.answer).trim()) && (
                                                     <div style={warningStyle}>
-                                                        Правильної відповіді <b>«{String(block.content.answer).trim()}»</b> немає серед варіантів — учень не зможе відповісти правильно. Додайте її до варіантів або виправте написання.
+                                                        Відповіді <b>«{String(block.content.answer).trim()}»</b> немає серед варіантів — завдання неможливо пройти.
                                                     </div>
                                                 )}
                                         </>
@@ -308,7 +309,7 @@ const LessonEditor: React.FC = () => {
 
                                     {block.type === 'homework' && (
                                         <>
-                                            <textarea value={block.content.prompt} onChange={e => updateBlock(block.id, { prompt: e.target.value })} placeholder="Опис домашнього завдання..." rows={3} style={inputStyle} />
+                                            <RichTextEditor value={block.content.prompt || ''} onChange={html => updateBlock(block.id, { prompt: html })} placeholder="Опис домашнього завдання..." minHeight={140} />
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', color: '#555', cursor: 'pointer' }}>
                                                 <input type="checkbox" checked={block.content.requiresReview} onChange={e => updateBlock(block.id, { requiresReview: e.target.checked })} style={{ width: 18, height: 18, cursor: 'pointer' }} />
                                                 Потрібна перевірка викладача

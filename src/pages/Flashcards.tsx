@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../components/ui/BottomNav';
 import { useUserId } from '../components/TelegramProvider';
+import { MascotAnimated } from '../components/MascotAnimated';
 
 const API = '';
 
@@ -29,6 +30,7 @@ const Flashcards: React.FC = () => {
     const [dragY, setDragY] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const [flyOut, setFlyOut] = useState<'left' | 'right' | null>(null);
+    const [mascotMood, setMascotMood] = useState('idle');
     const startPos = useRef({ x: 0, y: 0 });
     const USER_ID = useUserId();
 
@@ -58,6 +60,9 @@ const Flashcards: React.FC = () => {
     const submitAnswer = useCallback(async (correct: boolean) => {
         const card = cards[currentIndex];
         if (!card) return;
+        // Cheer or commiserate, then settle back so the next card starts neutral.
+        setMascotMood(correct ? 'happy' : 'sad');
+        setTimeout(() => setMascotMood('idle'), 1600);
         setSessionStats(prev => ({
             correct: prev.correct + (correct ? 1 : 0),
             wrong: prev.wrong + (correct ? 0 : 1)
@@ -216,6 +221,15 @@ const Flashcards: React.FC = () => {
                     </div>
                 ) : (
                     <>
+                        {/* Mascot reacting to the last answer, peeking above the card */}
+                        <div style={{
+                            position: 'relative', width: '100%', maxWidth: 380,
+                            display: 'flex', justifyContent: 'flex-end', pointerEvents: 'none',
+                            marginBottom: '-2.5rem', zIndex: 5,
+                        }}>
+                            <MascotAnimated mood={mascotMood} size={200} style={{ marginRight: '-20px' }} />
+                        </div>
+
                         {/* SWIPEABLE CARD */}
                         <div style={{ position: 'relative', width: '100%', maxWidth: 380, height: 320, marginBottom: '1.5rem', perspective: '1200px' }}>
                             {/* Swipe feedback overlays */}
