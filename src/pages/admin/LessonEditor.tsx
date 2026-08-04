@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Mascot, MASCOT_MOODS } from '../../components/Mascot';
 
 const API = '';
 
 type BlockType = 'text' | 'quiz' | 'word_order' | 'fill_blank' | 'match_pairs' | 'true_false' | 'audio' | 'photo' | 'homework' | 'mascot_tip';
-
-// Kept in step with MASCOT_MOODS in LessonView.
-const MASCOT_MOODS: { value: string; emoji: string; label: string }[] = [
-    { value: 'happy', emoji: '😺', label: 'Радісний' },
-    { value: 'perfect', emoji: '😻', label: 'Захоплений' },
-    { value: 'surprised', emoji: '🙀', label: 'Здивований' },
-    { value: 'sad', emoji: '😿', label: 'Сумний' },
-    { value: 'idle', emoji: '😼', label: 'Спокійний' },
-];
 
 interface BlockState { id: string; type: BlockType; content: any; }
 
@@ -26,7 +18,7 @@ const blockMeta: Record<BlockType, { emoji: string; label: string; desc: string;
     audio: { emoji: '🎵', label: 'Аудіо', desc: 'MP3, OGG, M4A файл', color: '#9f1239' },
     photo: { emoji: '🖼️', label: 'Фото + текст', desc: 'Зображення з підписом', color: '#92400e' },
     homework: { emoji: '📋', label: 'Домашнє завдання', desc: 'Студент здає файл або текст', color: '#065f46' },
-    mascot_tip: { emoji: '😺', label: 'Підказка від кота', desc: 'Репліка маскота учню', color: '#a16207' },
+    mascot_tip: { emoji: '🥤', label: 'Маскот-підказка', desc: 'Маскот із текстом-порадою', color: '#7c3aed' },
 };
 
 const defaultContent = (type: BlockType): any => {
@@ -40,7 +32,7 @@ const defaultContent = (type: BlockType): any => {
         case 'audio': return { audioUrl: '', caption: '' };
         case 'photo': return { imageUrl: '', caption: '' };
         case 'homework': return { prompt: '', requiresReview: true };
-        case 'mascot_tip': return { text: '', mood: 'happy' };
+        case 'mascot_tip': return { text: '', mood: 'neutral' };
         default: return {};
     }
 };
@@ -284,24 +276,33 @@ const LessonEditor: React.FC = () => {
 
                                     {block.type === 'mascot_tip' && (
                                         <>
-                                            <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>ЩО КАЖЕ КІТ</label>
+                                            <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>ТЕКСТ ПІДКАЗКИ</label>
                                             <textarea value={block.content.text || ''} onChange={e => updateBlock(block.id, { text: e.target.value })} placeholder="Напр: Ти сьогодні неймовірний!" rows={3} style={inputStyle} />
                                             <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>НАСТРІЙ</label>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                                 {MASCOT_MOODS.map(m => {
-                                                    const active = (block.content.mood || '').trim().toLowerCase() === m.value;
+                                                    const active = String(block.content.mood || 'neutral').trim().toLowerCase() === m.value;
                                                     return (
                                                         <button key={m.value} onClick={() => updateBlock(block.id, { mood: m.value })} style={{
-                                                            display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px',
-                                                            border: `2px solid ${active ? '#a16207' : '#e2e8f0'}`, borderRadius: '10px',
-                                                            background: active ? '#fefce8' : 'white', cursor: 'pointer',
-                                                            fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: active ? 700 : 500
+                                                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '8px 10px',
+                                                            border: `2px solid ${active ? '#7c3aed' : '#e2e8f0'}`, borderRadius: '12px',
+                                                            background: active ? '#f5f3ff' : 'white', cursor: 'pointer',
+                                                            fontFamily: 'inherit', fontSize: '0.75rem', fontWeight: active ? 700 : 500, color: '#475569'
                                                         }}>
-                                                            <span style={{ fontSize: '1.2rem' }}>{m.emoji}</span>{m.label}
+                                                            <img src={`/assets/mascot/${m.value}.png`} alt="" style={{ width: 34, height: 34, objectFit: 'contain' }} />
+                                                            {m.label}
                                                         </button>
                                                     );
                                                 })}
                                             </div>
+                                            {String(block.content.text || '').trim() && (
+                                                <>
+                                                    <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>ЯК ЦЕ ПОБАЧИТЬ УЧЕНЬ</label>
+                                                    <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem 0', background: '#f8fafc', borderRadius: '12px' }}>
+                                                        <Mascot mood={block.content.mood} size={90} speechBubble={block.content.text} />
+                                                    </div>
+                                                </>
+                                            )}
                                         </>
                                     )}
 

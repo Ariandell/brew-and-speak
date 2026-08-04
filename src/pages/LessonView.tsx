@@ -4,6 +4,7 @@ import { ProgressBar } from '../components/ui/ProgressBar';
 import { FeedbackBanner } from '../components/ui/FeedbackBanner';
 import { useUserId } from '../components/TelegramProvider';
 import { RichText } from '../utils/RichText';
+import { Mascot } from '../components/Mascot';
 
 const API = '';
 
@@ -299,44 +300,13 @@ const HomeworkPromptBlock: React.FC<{ content: any; lessonId: string; navigate: 
     </div>
 );
 
-// The mascot's aside to the student. These blocks predate this repository:
-// production has been storing {text, mood} for them since before the first
-// commit, with nothing on this side able to draw them, so they rendered as a
-// blank card. No cat artwork exists in the project, so the mood picks an emoji.
-const MASCOT_MOODS: Record<string, { emoji: string; bg: string; border: string }> = {
-    happy: { emoji: '😺', bg: '#fefce8', border: '#fde047' },
-    perfect: { emoji: '😻', bg: '#f5f3ff', border: '#c4b5fd' },
-    surprised: { emoji: '🙀', bg: '#eff6ff', border: '#93c5fd' },
-    sad: { emoji: '😿', bg: '#f8fafc', border: '#cbd5e1' },
-    idle: { emoji: '😼', bg: '#fff7ed', border: '#fdba74' },
-};
-
+// Laid out as it was in the March 20 build: centred, 100px, text in the bubble
+// above the mascot.
 const MascotTipBlock: React.FC<{ content: any }> = ({ content }) => {
-    const mood = MASCOT_MOODS[String(content.mood || '').trim().toLowerCase()] || MASCOT_MOODS.idle;
     if (!String(content.text || '').trim()) return null;
-
     return (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-            <div style={{
-                fontSize: '2.2rem', lineHeight: 1, flexShrink: 0,
-                width: 56, height: 56, borderRadius: '50%', background: mood.bg,
-                border: `2px solid ${mood.border}`, display: 'flex',
-                alignItems: 'center', justifyContent: 'center'
-            }}>{mood.emoji}</div>
-            <div style={{
-                position: 'relative', flex: 1, background: mood.bg,
-                border: `2px solid ${mood.border}`, borderRadius: '16px',
-                padding: '0.9rem 1rem', fontSize: '0.98rem', lineHeight: 1.6,
-                color: '#1a1a2e'
-            }}>
-                {/* Speech-bubble tail pointing back at the mascot */}
-                <span style={{
-                    position: 'absolute', left: -9, top: 18, width: 14, height: 14,
-                    background: mood.bg, borderLeft: `2px solid ${mood.border}`,
-                    borderBottom: `2px solid ${mood.border}`, transform: 'rotate(45deg)'
-                }} />
-                <RichText value={content.text} />
-            </div>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem 0' }}>
+            <Mascot mood={content.mood} size={100} speechBubble={<RichText value={content.text} />} />
         </div>
     );
 };
