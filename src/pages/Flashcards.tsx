@@ -6,11 +6,15 @@ import { MascotAnimated, CUP } from '../components/MascotAnimated';
 
 const API = '';
 
-// Frame height for the mascot; the cup renders about 0.35 of it, so 300 gives
-// a cup roughly 105px tall. MASCOT_OVERLAP is how far its foot dips over the
-// card's top edge.
-const MASCOT_SIZE = 300;
-const MASCOT_OVERLAP = 12;
+// Reproduces the March build's placement, worked back from its own numbers:
+// a 320px box holding a canvas at 1.5x with object-fit contain, offset
+// top:-40 right:-20. That put a 105x168 cup five pixels off the right edge of
+// the screen, dipping 72px over the card. The cup is 0.35 of the frame height,
+// so 480 gives 168; the horizontal inset is negative because the cup sat
+// slightly proud of the card, which is where its weight came from.
+const MASCOT_SIZE = 480;
+const MASCOT_OVERLAP = 72;
+const MASCOT_INSET = -14;
 
 interface StudyCard {
     id: number;
@@ -237,7 +241,7 @@ const Flashcards: React.FC = () => {
                             <div style={{
                                 position: 'absolute',
                                 top: MASCOT_OVERLAP - Math.round(MASCOT_SIZE * CUP.bottomFraction),
-                                right: 20, zIndex: 20,
+                                right: MASCOT_INSET, zIndex: 20,
                                 pointerEvents: 'none', transition: 'transform 0.3s ease',
                                 transform: mascotMood === 'happy' ? 'scale(1.05)' : mascotMood === 'sad' ? 'scale(0.95)' : 'scale(1)',
                                 transformOrigin: 'bottom right',
