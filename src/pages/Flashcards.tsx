@@ -14,7 +14,11 @@ const API = '';
 // slightly proud of the card, which is where its weight came from.
 const MASCOT_SIZE = 480;
 const MASCOT_OVERLAP = 72;
-const MASCOT_INSET = -14;
+// Negative pushes the cup past the card's right edge. The cup touches the
+// right edge of its own frame, so this is also the distance from the screen:
+// at -19 it sits flush against it, and anything beyond that starts cutting
+// into the cup rather than moving it.
+const MASCOT_INSET = -19;
 
 interface StudyCard {
     id: number;
