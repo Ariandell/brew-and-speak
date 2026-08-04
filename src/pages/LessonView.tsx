@@ -3,17 +3,15 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { FeedbackBanner } from '../components/ui/FeedbackBanner';
 import { useUserId } from '../components/TelegramProvider';
-import { toPlainText } from '../utils/plainText';
+import { RichText } from '../utils/RichText';
 
 const API = '';
 
 // ─── Block Renderers ───────────────────────────────────────────────────────
 
-// Lesson copy is typed into plain textareas, so any tags in it are markup that
-// came along with a paste. toPlainText leaves tag-free text exactly as written.
 const TextBlock: React.FC<{ content: any }> = ({ content }) => (
     <div style={{ lineHeight: 1.7, fontSize: '1rem', color: '#1a1a2e' }}>
-        <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{toPlainText(content.body)}</p>
+        <RichText value={content.body} />
     </div>
 );
 
@@ -37,7 +35,7 @@ const QuizBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ content
     };
     return (
         <div>
-            <p style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem' }}>{toPlainText(content.question)}</p>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem' }}><RichText value={content.question} /></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {options.map((opt: any, i: number) => {
                     const isSelected = selected === i;
@@ -287,7 +285,7 @@ const AudioBlock: React.FC<{ content: any }> = ({ content }) => (
 
 const HomeworkPromptBlock: React.FC<{ content: any; lessonId: string; navigate: any }> = ({ content, lessonId, navigate }) => (
     <div>
-        <p style={{ marginBottom: '1rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{toPlainText(content.prompt)}</p>
+        <div style={{ marginBottom: '1rem', lineHeight: 1.6 }}><RichText value={content.prompt} /></div>
         <button
             onClick={() => navigate(`/homework/${lessonId}`)}
             style={{
@@ -315,8 +313,7 @@ const MASCOT_MOODS: Record<string, { emoji: string; bg: string; border: string }
 
 const MascotTipBlock: React.FC<{ content: any }> = ({ content }) => {
     const mood = MASCOT_MOODS[String(content.mood || '').trim().toLowerCase()] || MASCOT_MOODS.idle;
-    const text = toPlainText(content.text);
-    if (!text) return null;
+    if (!String(content.text || '').trim()) return null;
 
     return (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
@@ -330,7 +327,7 @@ const MascotTipBlock: React.FC<{ content: any }> = ({ content }) => {
                 position: 'relative', flex: 1, background: mood.bg,
                 border: `2px solid ${mood.border}`, borderRadius: '16px',
                 padding: '0.9rem 1rem', fontSize: '0.98rem', lineHeight: 1.6,
-                color: '#1a1a2e', whiteSpace: 'pre-wrap'
+                color: '#1a1a2e'
             }}>
                 {/* Speech-bubble tail pointing back at the mascot */}
                 <span style={{
@@ -338,7 +335,7 @@ const MascotTipBlock: React.FC<{ content: any }> = ({ content }) => {
                     background: mood.bg, borderLeft: `2px solid ${mood.border}`,
                     borderBottom: `2px solid ${mood.border}`, transform: 'rotate(45deg)'
                 }} />
-                {text}
+                <RichText value={content.text} />
             </div>
         </div>
     );
