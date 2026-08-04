@@ -40,37 +40,6 @@ const inputStyle: React.CSSProperties = {
     background: '#fafafa', resize: 'vertical' as 'vertical'
 };
 
-// Blocks written by older versions of the constructor (grammar, exercise_click,
-// flashcard, ...) have no entry in blockMeta. They used to be skipped entirely,
-// which hid them from the teacher even though they stayed in the lesson and
-// showed students an empty card. Give them a generic editor instead.
-const legacyMeta = { emoji: '⚠️', label: 'Застарілий блок', color: '#b45309' };
-
-const LegacyBlockEditor: React.FC<{ content: any; onChange: (patch: any) => void }> = ({ content, onChange }) => {
-    const fields = Object.entries(content || {});
-    return (
-        <>
-            <p style={{ margin: 0, fontSize: '0.82rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '10px 12px', lineHeight: 1.5 }}>
-                Цей блок створено старою версією конструктора — учні його <b>не бачать</b>.
-                Перенесіть текст у новий блок і видаліть цей, або залиште як є.
-            </p>
-            {fields.length === 0 && (
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#888' }}>Блок порожній.</p>
-            )}
-            {fields.map(([key, value]) => (
-                <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '0.78rem', color: '#888', fontWeight: 600 }}>{key.toUpperCase()}</label>
-                    {typeof value === 'string' ? (
-                        <textarea value={value} onChange={e => onChange({ [key]: e.target.value })} rows={2} style={inputStyle} />
-                    ) : (
-                        <div style={{ ...inputStyle, color: '#888', fontSize: '0.82rem', wordBreak: 'break-all' }}>{JSON.stringify(value)}</div>
-                    )}
-                </div>
-            ))}
-        </>
-    );
-};
-
 const LessonEditor: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -157,23 +126,16 @@ const LessonEditor: React.FC = () => {
                 {/* Blocks */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {blocks.map((block, index) => {
-                        const isLegacy = !blockMeta[block.type];
-                        const meta = blockMeta[block.type] || legacyMeta;
+                        const meta = blockMeta[block.type];
+                        if (!meta) return null; // skip unknown/removed block types
                         return (
                             <div key={block.id} style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', padding: '0.8rem 1rem', borderBottom: '1px solid #f1f5f9', gap: '10px' }}>
                                     <span style={{ fontSize: '1.2rem' }}>{meta.emoji}</span>
-                                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: meta.color, flex: 1 }}>
-                                        {index + 1}. {meta.label}
-                                        {isLegacy && <span style={{ color: '#aaa', fontWeight: 500 }}> · {block.type}</span>}
-                                    </span>
+                                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: meta.color, flex: 1 }}>{index + 1}. {meta.label}</span>
                                     <button onClick={() => removeBlock(block.id)} style={{ background: '#fee2e2', border: 'none', borderRadius: '8px', width: 30, height: 30, color: '#ef4444', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                                 </div>
                                 <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-
-                                    {isLegacy && (
-                                        <LegacyBlockEditor content={block.content} onChange={patch => updateBlock(block.id, patch)} />
-                                    )}
 
                                     {block.type === 'text' && (
                                         <textarea value={block.content.body} onChange={e => updateBlock(block.id, { body: e.target.value })} placeholder="Введіть пояснення..." rows={4} style={inputStyle} />

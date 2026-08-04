@@ -284,12 +284,6 @@ const HomeworkPromptBlock: React.FC<{ content: any; lessonId: string; navigate: 
     </div>
 );
 
-// Types that have a renderer above. Blocks saved by older versions of the
-// constructor (grammar, exercise_click, flashcard, ...) match none of them and
-// used to render as an empty card; they are filtered out instead. The teacher
-// still sees and can edit them in the lesson constructor.
-const RENDERABLE_TYPES = ['text', 'quiz', 'word_order', 'fill_blank', 'true_false', 'match_pairs', 'audio', 'photo', 'homework'];
-
 // ─── Main Component ────────────────────────────────────────────────────────
 
 const LessonView: React.FC = () => {
@@ -349,9 +343,7 @@ const LessonView: React.FC = () => {
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>Завантаження уроку...</div>
     );
 
-    const visibleBlocks = blocks.filter(b => RENDERABLE_TYPES.includes(b.type));
-
-    if (visibleBlocks.length === 0) return (
+    if (blocks.length === 0) return (
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', color: '#888' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📭</div>
             <p style={{ fontWeight: 600, marginBottom: '4px' }}>У цьому уроці ще немає завдань</p>
@@ -377,7 +369,7 @@ const LessonView: React.FC = () => {
 
             {/* Block content */}
             <div style={{ flex: 1, padding: '1.2rem', paddingBottom: '120px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {visibleBlocks.map((block, idx) => {
+                {blocks.map((block, idx) => {
                     return (
                         <div key={idx} style={{ backgroundColor: 'white', borderRadius: '20px', padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
                             {block.type === 'text' && <TextBlock content={block.content} />}
