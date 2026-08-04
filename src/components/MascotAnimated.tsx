@@ -34,6 +34,12 @@ const transition = (next: string, prev: string | null): Clip => {
     return 'happyToIdle';
 };
 
+// Where the cup sits inside the frame, as fractions of the frame's size.
+// Measured by reading the alpha channel of every clip's final frame; all four
+// agree to within a percent. The cup hugs the frame's right edge, so callers
+// that anchor on `right` are really anchoring on the cup.
+export const CUP = { topFraction: 0.05, bottomFraction: 0.40 };
+
 let preloaded = false;
 
 interface Props {
@@ -67,10 +73,11 @@ export const MascotAnimated: React.FC<Props> = ({ mood, size = 320, style }) => 
         setClip(transition(mood, prev));
     }, [mood]);
 
-    // The clips are 300x533 with a lot of transparent margin - the cup itself
-    // fills roughly 38% of the frame height. `size` is the height of the frame,
-    // so the visible cup comes out at about a third of it. Width follows the
-    // real ratio: forcing a square box here is what shrank the cup to nothing.
+    // Measured from the clips themselves: each is a 300x533 frame in which the
+    // cup occupies x 61%-100% and y 5%-40%. So the frame is mostly empty, the
+    // cup hugs the frame's right edge, and `size` (the frame height) renders a
+    // cup about 0.35 of that tall. Callers position against CUP_INSET below
+    // rather than guessing at the padding.
     const width = Math.round(size * (300 / 533));
     const inner: React.CSSProperties = { width, height: size, display: 'block', pointerEvents: 'none' };
 

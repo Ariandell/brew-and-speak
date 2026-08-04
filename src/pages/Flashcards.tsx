@@ -2,9 +2,15 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BottomNav } from '../components/ui/BottomNav';
 import { useUserId } from '../components/TelegramProvider';
-import { MascotAnimated } from '../components/MascotAnimated';
+import { MascotAnimated, CUP } from '../components/MascotAnimated';
 
 const API = '';
+
+// Frame height for the mascot; the cup renders about 0.35 of it, so 300 gives
+// a cup roughly 105px tall. MASCOT_OVERLAP is how far its foot dips over the
+// card's top edge.
+const MASCOT_SIZE = 300;
+const MASCOT_OVERLAP = 12;
 
 interface StudyCard {
     id: number;
@@ -223,15 +229,20 @@ const Flashcards: React.FC = () => {
                     <>
                         {/* SWIPEABLE CARD */}
                         <div style={{ position: 'relative', width: '100%', maxWidth: 380, height: 320, marginBottom: '1.5rem', perspective: '1200px' }}>
-                            {/* Peeking over the card's top-right corner. Kept inside the
-                                card's own width so it cannot widen the page. */}
+                            {/* Peeking over the card's top-right corner. The frame is mostly
+                                transparent padding, so the offsets come from CUP: the cup's
+                                foot lands a touch below the card's top edge, and its right
+                                side - which is the frame's right edge - keeps clear of the
+                                screen by the card's own page margin plus this inset. */}
                             <div style={{
-                                position: 'absolute', top: -128, right: 4, zIndex: 20,
+                                position: 'absolute',
+                                top: MASCOT_OVERLAP - Math.round(MASCOT_SIZE * CUP.bottomFraction),
+                                right: 20, zIndex: 20,
                                 pointerEvents: 'none', transition: 'transform 0.3s ease',
                                 transform: mascotMood === 'happy' ? 'scale(1.05)' : mascotMood === 'sad' ? 'scale(0.95)' : 'scale(1)',
-                                transformOrigin: 'bottom center',
+                                transformOrigin: 'bottom right',
                             }}>
-                                <MascotAnimated mood={mascotMood} size={300} />
+                                <MascotAnimated mood={mascotMood} size={MASCOT_SIZE} />
                             </div>
 
                             {/* Swipe feedback overlays */}
