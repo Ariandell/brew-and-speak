@@ -7,6 +7,8 @@ import { Mascot } from './Mascot';
 
 interface Props {
     totalQuestions: number;
+    /** Answered and got right. Not derived from mistakes: skipping is not correct. */
+    correct: number;
     mistakes: number;
     timeSpent: number;
     lessonTitle: string;
@@ -21,10 +23,13 @@ const formatTime = (seconds: number) => {
     return m > 0 ? `${m} хв ${s} сек` : `${s} сек`;
 };
 
-// Mood, wording and palette all follow from how well it went.
-const verdict = (totalQuestions: number, mistakes: number, percent: number) => {
+// Mood, wording and palette all follow from how well it went. "Бездоганно"
+// requires actually having done the exercises - a lesson clicked straight
+// through used to earn it, which is the one thing it must never say.
+const verdict = (totalQuestions: number, correct: number, mistakes: number, percent: number) => {
     if (totalQuestions === 0) return { mood: 'happy', title: 'Урок пройдено! ✅', note: 'Так тримати!', accent: '#10b981', tint: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' };
-    if (mistakes === 0) return { mood: 'perfect', title: 'Бездоганно! 🌟', note: 'Жодної помилки – ти просто неймовірний!', accent: '#10b981', tint: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' };
+    if (correct + mistakes === 0) return { mood: 'idle', title: 'Завдання не виконані', note: 'Спробуй пройти вправи — так вони запамʼятаються.', accent: '#94a3b8', tint: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' };
+    if (mistakes === 0 && correct === totalQuestions) return { mood: 'perfect', title: 'Бездоганно! 🌟', note: 'Жодної помилки – ти просто неймовірний!', accent: '#10b981', tint: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' };
     if (percent >= 70) return { mood: 'happy', title: 'Гарна робота! 💪', note: 'Ще трішки і буде ідеально!', accent: '#f59e0b', tint: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' };
     return { mood: 'sad', title: 'Не здавайся! 📚', note: 'Помилки – це частина навчання. Спробуй ще!', accent: '#ef4444', tint: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' };
 };
@@ -32,10 +37,10 @@ const verdict = (totalQuestions: number, mistakes: number, percent: number) => {
 const statLabel: React.CSSProperties = { fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' };
 const barTrack: React.CSSProperties = { height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' };
 
-export const LessonResults: React.FC<Props> = ({ totalQuestions, mistakes, timeSpent, lessonTitle, hasHomework, onGoHome, onGoHomework }) => {
-    const correct = Math.max(0, totalQuestions - mistakes);
+export const LessonResults: React.FC<Props> = ({ totalQuestions, correct, mistakes, timeSpent, lessonTitle, hasHomework, onGoHome, onGoHomework }) => {
+    const skipped = Math.max(0, totalQuestions - correct - mistakes);
     const percent = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
-    const { mood, title, note, accent, tint } = verdict(totalQuestions, mistakes, percent);
+    const { mood, title, note, accent, tint } = verdict(totalQuestions, correct, mistakes, percent);
 
     return (
         <div style={{
@@ -90,6 +95,12 @@ export const LessonResults: React.FC<Props> = ({ totalQuestions, mistakes, timeS
                                 </div>
                             </div>
                         </>
+                    )}
+                    {skipped > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={statLabel}>⏭️ Пропущено</span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#94a3b8' }}>{skipped}/{totalQuestions}</span>
+                        </div>
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={statLabel}>⏱️ Час</span>

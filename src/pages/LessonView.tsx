@@ -19,7 +19,7 @@ const TextBlock: React.FC<{ content: any }> = ({ content }) => (
 
 
 
-const QuizBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ content, onMistake }) => {
+const QuizBlock: React.FC<{ content: any, onAnswer?: (correct: boolean) => void }> = ({ content, onAnswer }) => {
     const [selected, setSelected] = useState<number | null>(null);
     const [answered, setAnswered] = useState(false);
 
@@ -31,9 +31,7 @@ const QuizBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ content
         if (answered) return;
         setSelected(i);
         setAnswered(true);
-        if (!options[i]?.isCorrect && onMistake) {
-            onMistake();
-        }
+        onAnswer?.(Boolean(options[i]?.isCorrect));
     };
     return (
         <div>
@@ -59,7 +57,7 @@ const QuizBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ content
     );
 };
 
-const WordOrderBlock: React.FC<{ content: any }> = ({ content }) => {
+const WordOrderBlock: React.FC<{ content: any, onAnswer?: (correct: boolean) => void }> = ({ content, onAnswer }) => {
     const words: string[] = content.sentence?.split(' ') || [];
     const [shuffled] = useState<string[]>(() => [...words].sort(() => Math.random() - 0.5));
     const [chosen, setChosen] = useState<string[]>([]);
@@ -80,8 +78,10 @@ const WordOrderBlock: React.FC<{ content: any }> = ({ content }) => {
     };
 
     const check = () => {
-        setIsCorrect(chosen.join(' ') === words.join(' '));
+        const right = chosen.join(' ') === words.join(' ');
+        setIsCorrect(right);
         setAnswered(true);
+        onAnswer?.(right);
     };
 
     return (
@@ -129,7 +129,7 @@ const WordOrderBlock: React.FC<{ content: any }> = ({ content }) => {
     );
 };
 
-const FillBlankBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ content, onMistake }) => {
+const FillBlankBlock: React.FC<{ content: any, onAnswer?: (correct: boolean) => void }> = ({ content, onAnswer }) => {
     const [selected, setSelected] = useState<string | null>(null);
     const [answered, setAnswered] = useState(false);
     const sentence: string = content.sentence || '';
@@ -145,9 +145,7 @@ const FillBlankBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ co
         if (answered) return;
         setSelected(opt);
         setAnswered(true);
-        if (!isCorrect(opt) && onMistake) {
-            onMistake();
-        }
+        onAnswer?.(isCorrect(opt));
     };
 
     // Teachers mark the gap with however many underscores they feel like ("_",
@@ -181,16 +179,14 @@ const FillBlankBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ co
     );
 };
 
-const TrueFalseBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ content, onMistake }) => {
+const TrueFalseBlock: React.FC<{ content: any, onAnswer?: (correct: boolean) => void }> = ({ content, onAnswer }) => {
     const [selected, setSelected] = useState<boolean | null>(null);
     const [answered, setAnswered] = useState(false);
     const choose = (val: boolean) => {
         if (answered) return;
         setSelected(val);
         setAnswered(true);
-        if (val !== content.isTrue && onMistake) {
-            onMistake();
-        }
+        onAnswer?.(val === content.isTrue);
     };
     return (
         <div>
@@ -215,12 +211,15 @@ const TrueFalseBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ co
     );
 };
 
-const MatchPairsBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ content, onMistake }) => {
+const MatchPairsBlock: React.FC<{ content: any, onAnswer?: (correct: boolean) => void }> = ({ content, onAnswer }) => {
     const pairs: Array<{ word: string; translation: string }> = content.pairs || [];
     const [leftSelected, setLeftSelected] = useState<number | null>(null);
     const [matched, setMatched] = useState<Record<number, number>>({});
     const [wrong, setWrong] = useState<number | null>(null);
     const [answered, setAnswered] = useState(false);
+    // The exercise only ends when every pair is matched, so it counts as done
+    // then - correct if the student never picked a wrong one along the way.
+    const misfired = useRef(false);
 
     const shuffledRight = useRef(pairs.map((_, i) => i).sort(() => Math.random() - 0.5));
 
@@ -236,10 +235,13 @@ const MatchPairsBlock: React.FC<{ content: any, onMistake?: () => void }> = ({ c
             const newMatched = { ...matched, [leftSelected]: rightIdx };
             setMatched(newMatched);
             setLeftSelected(null);
-            if (Object.keys(newMatched).length === pairs.length) setAnswered(true);
+            if (Object.keys(newMatched).length === pairs.length) {
+                setAnswered(true);
+                onAnswer?.(!misfired.current);
+            }
         } else {
             setWrong(rightIdx);
-            if (onMistake) onMistake();
+            misfired.current = true;
             setTimeout(() => { setWrong(null); setLeftSelected(null); }, 600);
         }
     };
@@ -328,15 +330,22 @@ const LessonView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [finishing, setFinishing] = useState(false);
     const [score, setScore] = useState(10);
-    const [results, setResults] = useState<{ mistakes: number; timeSpent: number } | null>(null);
+    const [results, setResults] = useState<{ correct: number; mistakes: number; timeSpent: number } | null>(null);
     const startTimeRef = useRef<number>(Date.now());
-    // A block counts as one mistake however many times it is answered wrongly.
+    // Both sets are keyed by block, so a block counts once however many times it
+    // is touched. Tracking answered separately from mistakes is what stops a
+    // skipped lesson scoring full marks: an exercise nobody attempted is not
+    // correct, it is simply not answered.
+    const answeredBlocks = useRef<Set<number>>(new Set());
     const mistakeBlocks = useRef<Set<number>>(new Set());
 
-    const handleMistake = (blockIndex: number) => {
-        if (mistakeBlocks.current.has(blockIndex)) return;
-        mistakeBlocks.current.add(blockIndex);
-        setScore(prev => Math.max(1, prev - 1));
+    const handleAnswer = (blockIndex: number, correct: boolean) => {
+        if (answeredBlocks.current.has(blockIndex)) return; // first attempt is the one that counts
+        answeredBlocks.current.add(blockIndex);
+        if (!correct) {
+            mistakeBlocks.current.add(blockIndex);
+            setScore(prev => Math.max(1, prev - 1));
+        }
     };
 
     useEffect(() => {
@@ -370,7 +379,11 @@ const LessonView: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: USER_ID, needsTeacherReview: false, score, timeSpent })
             });
-            setResults({ mistakes: mistakeBlocks.current.size, timeSpent });
+            setResults({
+                correct: answeredBlocks.current.size - mistakeBlocks.current.size,
+                mistakes: mistakeBlocks.current.size,
+                timeSpent,
+            });
         } catch {
             setFinishing(false);
         }
@@ -410,11 +423,11 @@ const LessonView: React.FC = () => {
                     return (
                         <div key={idx} style={{ backgroundColor: 'white', borderRadius: '20px', padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
                             {block.type === 'text' && <TextBlock content={block.content} />}
-                            {block.type === 'quiz' && <QuizBlock content={block.content} onMistake={() => handleMistake(idx)} />}
-                            {block.type === 'word_order' && <WordOrderBlock content={block.content} />}
-                            {block.type === 'fill_blank' && <FillBlankBlock content={block.content} onMistake={() => handleMistake(idx)} />}
-                            {block.type === 'true_false' && <TrueFalseBlock content={block.content} onMistake={() => handleMistake(idx)} />}
-                            {block.type === 'match_pairs' && <MatchPairsBlock content={block.content} onMistake={() => handleMistake(idx)} />}
+                            {block.type === 'quiz' && <QuizBlock content={block.content} onAnswer={ok => handleAnswer(idx, ok)} />}
+                            {block.type === 'word_order' && <WordOrderBlock content={block.content} onAnswer={ok => handleAnswer(idx, ok)} />}
+                            {block.type === 'fill_blank' && <FillBlankBlock content={block.content} onAnswer={ok => handleAnswer(idx, ok)} />}
+                            {block.type === 'true_false' && <TrueFalseBlock content={block.content} onAnswer={ok => handleAnswer(idx, ok)} />}
+                            {block.type === 'match_pairs' && <MatchPairsBlock content={block.content} onAnswer={ok => handleAnswer(idx, ok)} />}
                             {block.type === 'audio' && <AudioBlock content={block.content} />}
                             {block.type === 'photo' && (
                                 <div>
@@ -452,6 +465,7 @@ const LessonView: React.FC = () => {
             {results && (
                 <LessonResults
                     totalQuestions={blocks.filter(b => SCORED_TYPES.includes(b.type)).length}
+                    correct={results.correct}
                     mistakes={results.mistakes}
                     timeSpent={results.timeSpent}
                     lessonTitle={lesson?.title || 'Урок'}
