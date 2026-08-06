@@ -47,7 +47,10 @@ const Home: React.FC = () => {
                     // Fetch full course path with user progress
                     const pathRes = await fetch(`${API}/api/courses/${data.courseId}/path/${USER_ID}`);
                     const pathData = await pathRes.json();
-                    setCoursePath(pathData);
+                    // An error body is an object, and putting one in here used to
+                    // throw on the first .map during render - which unmounts the
+                    // whole app and leaves a blank screen.
+                    setCoursePath(Array.isArray(pathData) ? pathData : []);
                 } else {
                     // API confirmed: no enrollment. Clear cache.
                     try { localStorage.removeItem(`enrollment_${USER_ID}`); } catch { }
@@ -64,7 +67,7 @@ const Home: React.FC = () => {
                 if (cached?.courseId) {
                     fetch(`${API}/api/courses/${cached.courseId}/path/${USER_ID}`)
                         .then(r => r.json())
-                        .then(data => setCoursePath(data))
+                        .then(data => setCoursePath(Array.isArray(data) ? data : []))
                         .catch(() => { });
                 }
             })
@@ -83,7 +86,10 @@ const Home: React.FC = () => {
                 }
             })
             .catch(() => { });
-    }, [USER_ID]);
+        // ready must be a dependency: this effect bails out while it is false,
+        // and without it here nothing re-runs once the provider flips it - the
+        // screen then sits on its loading branch forever and renders nothing.
+    }, [USER_ID, ready]);
 
     const handlePhotoViewed = (id: number) => {
         fetch(`${API}/api/photo-messages/${id}/viewed`, {

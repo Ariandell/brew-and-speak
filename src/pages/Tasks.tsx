@@ -28,7 +28,7 @@ const Tasks: React.FC = () => {
             })
             .then(res => res.json())
             .then(data => {
-                setPath(data);
+                setPath(Array.isArray(data) ? data : []);
                 setLoading(false);
             })
             .catch(err => {
