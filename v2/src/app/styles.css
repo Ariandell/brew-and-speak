@@ -50,7 +50,7 @@
 .moving-bar         { animation: slide-infinite 8s linear infinite; }
 .group:hover .glare { animation: glare-sweep 0.8s ease-out; }
 
-/* Motion explains a change; it should never be the only thing conveying one. */
+/* Motion explains a change; it must never be the only thing conveying one. */
 @media (prefers-reduced-motion: reduce) {
   .animate-float,
   .animate-pulse-fast,
