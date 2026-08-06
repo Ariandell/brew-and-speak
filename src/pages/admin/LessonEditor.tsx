@@ -64,6 +64,8 @@ const LessonEditor: React.FC = () => {
     const [saved, setSaved] = useState(false);
     const [loading, setLoading] = useState(!isNew);
     const [flashcards, setFlashcards] = useState<{ front: string; back: string }[]>([]);
+    const [generating, setGenerating] = useState(false);
+    const [genError, setGenError] = useState('');
 
     useEffect(() => {
         if (!isNew && id) {
@@ -99,6 +101,31 @@ const LessonEditor: React.FC = () => {
             setTimeout(() => setSaved(false), 2000);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const generateVocabulary = async () => {
+        if (!id || isNew || generating) return;
+        setGenerating(true);
+        setGenError('');
+        try {
+            const res = await fetch(`${API}/api/admin/generate-vocabulary`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lessonId: id, count: 10 })
+            });
+            const data = await res.json();
+            if (!res.ok) { setGenError(data?.error || 'Не вдалося згенерувати.'); return; }
+
+            // Skip words the lesson already has, so pressing twice does not duplicate.
+            const have = new Set(flashcards.map(f => f.front.trim().toLowerCase()));
+            const fresh = (data.cards || []).filter((c: any) => !have.has(String(c.front).trim().toLowerCase()));
+            if (!fresh.length) { setGenError('Нових слів не знайшлося — усі вже у списку.'); return; }
+            setFlashcards(prev => [...prev, ...fresh]);
+        } catch {
+            setGenError('Немає зв\'язку з сервером.');
+        } finally {
+            setGenerating(false);
         }
     };
 
@@ -361,6 +388,24 @@ const LessonEditor: React.FC = () => {
                     📖 Словник уроку
                     <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>({flashcards.length} слів)</span>
                 </h3>
+
+                {/* Drafts are appended for review; nothing is saved until the
+                    teacher presses save, so a bad batch costs one undo. */}
+                <button
+                    onClick={generateVocabulary}
+                    disabled={generating || isNew}
+                    style={{
+                        width: '100%', padding: '0.75rem', marginBottom: '0.75rem',
+                        border: '2px dashed #a5b4fc', borderRadius: '12px',
+                        background: generating ? '#eef2ff' : 'transparent', color: '#4f46e5',
+                        cursor: generating || isNew ? 'default' : 'pointer', fontFamily: 'inherit',
+                        fontSize: '0.9rem', fontWeight: 600, opacity: isNew ? 0.5 : 1,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                    }}
+                >
+                    {generating ? '⏳ Нейромережа думає...' : '✨ Згенерувати слова з уроку'}
+                </button>
+                {genError && <div style={{ ...warningStyle, marginBottom: '0.75rem' }}>{genError}</div>}
 
                 {flashcards.map((fc, idx) => (
                     <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>

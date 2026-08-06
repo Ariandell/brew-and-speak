@@ -16,12 +16,15 @@ export interface TelegramContextType {
     webApp: any | null;
     user: WebAppUser | null;
     ready: boolean;
+    /** Set by /api/users/sync when the teacher has revoked this student's access. */
+    blocked: boolean;
 }
 
 const TelegramContext = createContext<TelegramContextType>({
     webApp: null,
     user: null,
     ready: false,
+    blocked: false,
 });
 
 export const useTelegram = () => useContext(TelegramContext);
@@ -30,6 +33,7 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [webApp, setWebApp] = useState<any | null>(null);
     const [user, setUser] = useState<WebAppUser | null>(null);
     const [ready, setReady] = useState(false);
+    const [blocked, setBlocked] = useState(false);
 
     useEffect(() => {
         // @ts-ignore
@@ -51,7 +55,7 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(tgUser)
-                }).catch(() => { });
+                }).then(r => r.json()).then(d => setBlocked(Boolean(d && d.blocked))).catch(() => { });
             } else {
                 // Fallback for local development outside Telegram
                 console.warn('Telegram WebApp initialized but no user found in initDataUnsafe. Using demo-user fallback.');
@@ -66,7 +70,7 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(demoUser)
-                }).catch(() => { });
+                }).then(r => r.json()).then(d => setBlocked(Boolean(d && d.blocked))).catch(() => { });
             }
 
             // Force light mode aesthetics as requested by user
@@ -87,14 +91,14 @@ export const TelegramProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(fallbackUser)
-            }).catch(() => { });
+            }).then(r => r.json()).then(d => setBlocked(Boolean(d && d.blocked))).catch(() => { });
         }
 
         setReady(true);
     }, []);
 
     return (
-        <TelegramContext.Provider value={{ webApp, user, ready }}>
+        <TelegramContext.Provider value={{ webApp, user, ready, blocked }}>
             {children}
         </TelegramContext.Provider>
     );

@@ -15,6 +15,7 @@ const tiles: Tile[] = [
     { emoji: '💬', label: 'Чат', sublabel: 'Відповідати студентам', path: '/admin/chat', color: '#0e7490', bg: 'linear-gradient(135deg, #e0f7fa, #b2ebf2)' },
     { emoji: '📨', label: 'Розсилка', sublabel: 'Фото-повідомлення', path: '/admin/photo-messages', color: '#b45309', bg: 'linear-gradient(135deg, #fef3c7, #fde68a)' },
     { emoji: '✍️', label: 'ДЗ', sublabel: 'Перевірка домашніх', path: '/admin/homework', color: '#065f46', bg: 'linear-gradient(135deg, #d1fae5, #a7f3d0)' },
+    { emoji: '👥', label: 'Учні', sublabel: 'Список і доступ', path: '/admin/students', color: '#1d4ed8', bg: 'linear-gradient(135deg, #dbeafe, #bfdbfe)' },
 ];
 
 const Dashboard: React.FC = () => {

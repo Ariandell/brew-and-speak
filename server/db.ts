@@ -25,6 +25,10 @@ async function initDB() {
   `);
     // Add column if it doesn't exist (migration for existing DBs)
     try { await dbRaw.execute(`ALTER TABLE users ADD COLUMN enrolled_course_id INTEGER`); } catch { }
+    // Production already carries these; a freshly created database would not,
+    // and the students roster reads both.
+    try { await dbRaw.execute(`ALTER TABLE users ADD COLUMN username TEXT`); } catch { }
+    try { await dbRaw.execute(`ALTER TABLE users ADD COLUMN is_blocked INTEGER DEFAULT 0`); } catch { }
 
     // Levels (Map Zones)
     await dbRaw.execute(`

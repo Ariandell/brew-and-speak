@@ -5,6 +5,7 @@ import { FeedbackBanner } from '../components/ui/FeedbackBanner';
 import { useUserId } from '../components/TelegramProvider';
 import { RichText } from '../utils/RichText';
 import { Mascot } from '../components/Mascot';
+import { LessonResults } from '../components/LessonResults';
 
 const API = '';
 
@@ -311,6 +312,10 @@ const MascotTipBlock: React.FC<{ content: any }> = ({ content }) => {
     );
 };
 
+// Block types that count towards the score. Reading and listening blocks have
+// no right answer, so they must not dilute the percentage.
+const SCORED_TYPES = ['quiz', 'fill_blank', 'true_false', 'match_pairs', 'word_order'];
+
 // ─── Main Component ────────────────────────────────────────────────────────
 
 const LessonView: React.FC = () => {
@@ -323,9 +328,14 @@ const LessonView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [finishing, setFinishing] = useState(false);
     const [score, setScore] = useState(10);
+    const [results, setResults] = useState<{ mistakes: number; timeSpent: number } | null>(null);
     const startTimeRef = useRef<number>(Date.now());
+    // A block counts as one mistake however many times it is answered wrongly.
+    const mistakeBlocks = useRef<Set<number>>(new Set());
 
-    const handleMistake = () => {
+    const handleMistake = (blockIndex: number) => {
+        if (mistakeBlocks.current.has(blockIndex)) return;
+        mistakeBlocks.current.add(blockIndex);
         setScore(prev => Math.max(1, prev - 1));
     };
 
@@ -360,7 +370,7 @@ const LessonView: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: USER_ID, needsTeacherReview: false, score, timeSpent })
             });
-            navigate('/');
+            setResults({ mistakes: mistakeBlocks.current.size, timeSpent });
         } catch {
             setFinishing(false);
         }
@@ -400,11 +410,11 @@ const LessonView: React.FC = () => {
                     return (
                         <div key={idx} style={{ backgroundColor: 'white', borderRadius: '20px', padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
                             {block.type === 'text' && <TextBlock content={block.content} />}
-                            {block.type === 'quiz' && <QuizBlock content={block.content} onMistake={handleMistake} />}
+                            {block.type === 'quiz' && <QuizBlock content={block.content} onMistake={() => handleMistake(idx)} />}
                             {block.type === 'word_order' && <WordOrderBlock content={block.content} />}
-                            {block.type === 'fill_blank' && <FillBlankBlock content={block.content} onMistake={handleMistake} />}
-                            {block.type === 'true_false' && <TrueFalseBlock content={block.content} onMistake={handleMistake} />}
-                            {block.type === 'match_pairs' && <MatchPairsBlock content={block.content} onMistake={handleMistake} />}
+                            {block.type === 'fill_blank' && <FillBlankBlock content={block.content} onMistake={() => handleMistake(idx)} />}
+                            {block.type === 'true_false' && <TrueFalseBlock content={block.content} onMistake={() => handleMistake(idx)} />}
+                            {block.type === 'match_pairs' && <MatchPairsBlock content={block.content} onMistake={() => handleMistake(idx)} />}
                             {block.type === 'audio' && <AudioBlock content={block.content} />}
                             {block.type === 'photo' && (
                                 <div>
@@ -438,6 +448,18 @@ const LessonView: React.FC = () => {
                     </p>
                 </div>
             </div>
+
+            {results && (
+                <LessonResults
+                    totalQuestions={blocks.filter(b => SCORED_TYPES.includes(b.type)).length}
+                    mistakes={results.mistakes}
+                    timeSpent={results.timeSpent}
+                    lessonTitle={lesson?.title || 'Урок'}
+                    hasHomework={blocks.some(b => b.type === 'homework')}
+                    onGoHome={() => navigate('/')}
+                    onGoHomework={() => navigate(`/homework/${id}`)}
+                />
+            )}
         </div>
     );
 };

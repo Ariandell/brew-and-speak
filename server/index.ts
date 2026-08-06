@@ -84,15 +84,23 @@ app.post('/api/users/sync', async (req, res) => {
 
         const name = [first_name, last_name].filter(Boolean).join(' ') || username || 'Unknown';
 
-        // Upsert user to ensure they exist in DB
-        // If they already exist, we just update their name/username in case it changed
-        const role = ADMIN_USERNAMES.includes((username || '').toLowerCase()) ? 'teacher' : 'student';
+        // Being on the admin list grants the teacher role, but not being on it
+        // must not take one away: the role can also be set by hand in the
+        // database, and this endpoint runs on every single app launch. The old
+        // version reset it unconditionally, so a teacher who changed their
+        // Telegram username silently lost access on their next visit.
+        const isAdmin = ADMIN_USERNAMES.includes((username || '').toLowerCase());
         await db.prepare(`
-            INSERT INTO users (telegram_id, name, role) VALUES (?, ?, ?)
-            ON CONFLICT(telegram_id) DO UPDATE SET name = ?, role = ?
-        `).run(id.toString(), name, role, name, role);
+            INSERT INTO users (telegram_id, name, username, role) VALUES (?, ?, ?, ?)
+            ON CONFLICT(telegram_id) DO UPDATE SET
+                name = ?,
+                username = ?,
+                role = CASE WHEN ? = 1 THEN 'teacher' ELSE users.role END
+        `).run(id.toString(), name, username || null, isAdmin ? 'teacher' : 'student',
+            name, username || null, isAdmin ? 1 : 0);
 
-        res.json({ success: true });
+        const user = await db.prepare('SELECT is_blocked FROM users WHERE telegram_id = ?').get(id.toString());
+        res.json({ success: true, blocked: Number(user?.is_blocked) === 1 });
     } catch (error) {
         console.error('Failed to sync user:', error);
         res.status(500).json({ error: 'Failed to sync user' });
@@ -181,7 +189,10 @@ app.get('/api/courses/:courseId/path/:userId', async (req, res) => {
     try {
         const { courseId, userId } = req.params;
 
-        const user = await db.prepare(`SELECT id, role FROM users WHERE telegram_id = ?`).get(userId);
+        const user = await db.prepare(`SELECT id, role, is_blocked FROM users WHERE telegram_id = ?`).get(userId);
+        // Blocking has to bite somewhere the app cannot route around, not just
+        // in the UI: without this the course is still served to a blocked student.
+        if (Number(user?.is_blocked) === 1) return res.status(403).json({ error: 'blocked' });
         const internalId = user ? user.id : userId; // Fallback for local dev if missing
         const isTeacher = user?.role === 'teacher';
 
@@ -941,6 +952,134 @@ app.post('/api/admin/lessons/:lessonId/flashcards', async (req, res) => {
     } catch (err) {
         console.error("Failed to save flashcards", err);
         res.status(500).json({ error: 'Failed to save flashcards' });
+    }
+});
+
+// --- Admin: Students ---
+
+// The roster, with enough per-student detail to act on without opening each one.
+app.get('/api/admin/students', async (req, res) => {
+    try {
+        const students = await db.prepare(`
+            SELECT u.id, u.telegram_id, u.name, u.username, u.role,
+                   COALESCE(u.is_blocked, 0) AS is_blocked,
+                   u.enrolled_course_id,
+                   l.title AS course_title,
+                   (SELECT COUNT(*) FROM user_progress p WHERE p.user_id = u.id AND p.status = 'completed') AS completed,
+                   (SELECT MAX(p.completed_at) FROM user_progress p WHERE p.user_id = u.id) AS last_completed,
+                   (SELECT COUNT(*) FROM homework_submissions h WHERE h.user_id = u.id AND h.status = 'pending') AS pending_homework
+            FROM users u
+            LEFT JOIN levels l ON l.id = u.enrolled_course_id
+            WHERE u.role != 'admin'
+            ORDER BY COALESCE(u.is_blocked, 0) ASC, u.name COLLATE NOCASE ASC
+        `).all();
+        res.json(students || []);
+    } catch (error) {
+        console.error('Failed to list students:', error);
+        res.status(500).json({ error: 'Failed to list students' });
+    }
+});
+
+app.post('/api/admin/students/:id/:action', async (req, res) => {
+    try {
+        const { id, action } = req.params;
+        if (action !== 'block' && action !== 'unblock') {
+            return res.status(400).json({ error: 'action must be block or unblock' });
+        }
+
+        const target = await db.prepare('SELECT id, role FROM users WHERE id = ?').get(id);
+        if (!target) return res.status(404).json({ error: 'Student not found' });
+        // Locking out a teacher would take the admin panel with it.
+        if (target.role === 'teacher' || target.role === 'admin') {
+            return res.status(400).json({ error: 'Не можна заблокувати викладача' });
+        }
+
+        await db.prepare('UPDATE users SET is_blocked = ? WHERE id = ?').run(action === 'block' ? 1 : 0, id);
+        res.json({ success: true, is_blocked: action === 'block' ? 1 : 0 });
+    } catch (error) {
+        console.error('Failed to change student access:', error);
+        res.status(500).json({ error: 'Failed to change access' });
+    }
+});
+
+// Admin: draft vocabulary for a lesson with Gemini.
+// The key lives only in the environment - never in the repo, which is public.
+app.post('/api/admin/generate-vocabulary', async (req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        return res.status(503).json({ error: 'Генератор не налаштований: немає GEMINI_API_KEY' });
+    }
+
+    try {
+        const { lessonId, count = 10 } = req.body;
+        if (!lessonId) return res.status(400).json({ error: 'lessonId required' });
+
+        const lesson = await db.prepare('SELECT title FROM lessons WHERE id = ?').get(lessonId);
+        if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+        // Give the model the lesson's own copy so the words match what is taught.
+        const blocks = await db.prepare('SELECT type, content FROM lesson_blocks WHERE lesson_id = ? ORDER BY "order" ASC').all(lessonId);
+        const context = (blocks || [])
+            .map((b: any) => { try { return JSON.parse(b.content); } catch { return {}; } })
+            .map((c: any) => [c.body, c.prompt, c.question, c.sentence, c.statement, c.text].filter(Boolean).join(' '))
+            .join('\n')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .slice(0, 4000);
+
+        const prompt = [
+            `Ти помічник викладачки англійської. Урок називається: "${lesson.title}".`,
+            context ? `Матеріал уроку:\n${context}` : '',
+            ``,
+            `Склади рівно ${count} словникових карток за цим уроком.`,
+            `Кожна картка: англійське слово або стала фраза + короткий український переклад.`,
+            `Бери слова з матеріалу уроку; якщо їх замало - додай доречні за темою.`,
+            `Без пояснень і без повторів.`,
+            `Поверни ЛИШЕ JSON-масив, без markdown: [{"front":"...","back":"..."}]`,
+        ].join('\n');
+
+        const response = await fetch(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: 'application/json', temperature: 0.7 },
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const detail = await response.text();
+            console.error('Gemini error:', response.status, detail.slice(0, 400));
+            return res.status(502).json({ error: 'Модель не відповіла. Спробуйте ще раз.' });
+        }
+
+        const data: any = await response.json();
+        const raw = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).filter(Boolean).join('') || '';
+
+        // responseMimeType asks for JSON, but a stray code fence still happens.
+        let parsed: any;
+        try {
+            parsed = JSON.parse(raw.replace(/^```(?:json)?|```$/g, '').trim());
+        } catch {
+            console.error('Gemini returned unparseable output:', raw.slice(0, 400));
+            return res.status(502).json({ error: 'Модель повернула нерозбірливу відповідь.' });
+        }
+
+        const cards = (Array.isArray(parsed) ? parsed : parsed?.cards || [])
+            .map((c: any) => ({ front: String(c?.front ?? '').trim(), back: String(c?.back ?? '').trim() }))
+            .filter((c: any) => c.front && c.back)
+            .slice(0, 40);
+
+        if (!cards.length) return res.status(502).json({ error: 'Модель не повернула жодного слова.' });
+
+        // Nothing is saved here: the teacher reviews the drafts and presses save.
+        res.json({ cards });
+    } catch (err) {
+        console.error('Failed to generate vocabulary:', err);
+        res.status(500).json({ error: 'Не вдалося згенерувати словник' });
     }
 });
 
