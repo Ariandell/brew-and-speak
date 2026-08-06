@@ -61,7 +61,7 @@ const Flashcards: React.FC = () => {
                 setLoading(false);
             })
             .catch(() => setLoading(false));
-    }, []);
+    }, [USER_ID]);
 
     useEffect(() => { loadCards(); }, [loadCards]);
 
@@ -88,7 +88,7 @@ const Flashcards: React.FC = () => {
                 body: JSON.stringify({ correct })
             });
         } catch { }
-    }, [cards, currentIndex]);
+    }, [cards, currentIndex, USER_ID]);
 
     const handleSwipeComplete = useCallback((direction: 'left' | 'right') => {
         const correct = direction === 'right';

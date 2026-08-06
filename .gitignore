@@ -2,5 +2,6 @@ node_modules
 .vercel
 backups
 recovered
+sandbox
 .env
 .env.*

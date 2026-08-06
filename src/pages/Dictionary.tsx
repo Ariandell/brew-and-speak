@@ -27,7 +27,7 @@ const Dictionary: React.FC = () => {
             .then(r => r.json())
             .then(data => { setWords(Array.isArray(data) ? data : []); setLoading(false); })
             .catch(() => setLoading(false));
-    }, []);
+    }, [USER_ID]);
 
     const filtered = words.filter(w =>
         w.front.toLowerCase().includes(search.toLowerCase()) ||

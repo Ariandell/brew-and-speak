@@ -183,7 +183,7 @@ const Profile: React.FC = () => {
             });
             setLoading(false);
         });
-    }, []);
+    }, [USER_ID]);
 
     const earnedCount = stats ? ACHIEVEMENTS.filter(a => a.check(stats)).length : 0;
 

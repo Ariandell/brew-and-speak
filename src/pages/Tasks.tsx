@@ -35,7 +35,7 @@ const Tasks: React.FC = () => {
                 console.error("Failed to load schedule", err);
                 setLoading(false);
             });
-    }, []);
+    }, [USER_ID]);
 
     // Helper to format date "YYYY-MM-DD"
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
