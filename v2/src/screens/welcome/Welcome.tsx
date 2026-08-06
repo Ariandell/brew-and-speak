@@ -2,7 +2,7 @@ import { Screen } from '../../ui/Screen';
 import { Panel } from '../../ui/Panel';
 import { Button } from '../../ui/Button';
 import { MonoNote } from '../../ui/MonoNote';
-import { Mascot } from '../../ui/Mascot';
+import { MascotAnimated } from '../../ui/MascotAnimated';
 import { Backdrop } from './Backdrop';
 
 interface Props {
@@ -34,7 +34,9 @@ export const Welcome = ({ onStart }: Props) => (
         </section>
 
         <section className="relative z-30 mt-[-20px] flex flex-grow items-center justify-center">
-            <div className="animate-float relative flex h-[300px] w-[300px] items-center justify-center">
+            {/* No float on this group: the mascot now breathes on its own, and
+                drifting the frame as well turns two readable motions into soup. */}
+            <div className="relative flex h-[300px] w-[300px] items-center justify-center">
                 <Panel tilt="left" className="absolute h-[210px] w-[210px] -translate-x-5 translate-y-5 rounded-3xl bg-blue-deep opacity-80 mix-blend-multiply" />
                 {/* The cup is the accent colour, so on the blue plane it needs
                     something light behind it or it reads as a silhouette. */}
@@ -45,10 +47,8 @@ export const Welcome = ({ onStart }: Props) => (
                     <div className="absolute h-full w-px bg-blue-hot/40" />
                 </div>
 
-                {/* `neutral` is the only pose exported large enough to stay sharp
-                    at this size. Swap to `happy` once we have it at 3x. */}
-                <Mascot
-                    mood="neutral"
+                <MascotAnimated
+                    mood="perfect"
                     size={230}
                     className="relative z-20 drop-shadow-[0_20px_30px_rgba(0,0,0,0.4)] transition-transform duration-300 ease-snappy hover:scale-110"
                 />
