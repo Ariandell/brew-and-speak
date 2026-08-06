@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { background: theme('colors.ink'); }
+  body {
+    margin: 0;
+    font-family: theme('fontFamily.sans');
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  .skew-plane { transform: skewY(-8deg); }
+  .skew-plane-reverse { transform: skewY(8deg); }
+
+  .text-outline-light {
+    -webkit-text-stroke: 1px theme('colors.paper');
+    color: transparent;
+  }
+
+  .bg-dots {
+    background-image: radial-gradient(theme('colors.ink-soft') 1px, transparent 1px);
+    background-size: 16px 16px;
+    opacity: 0.15;
+  }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50%      { transform: translateY(-10px) rotate(2deg); }
+}
+@keyframes pulse-fast {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+@keyframes slide-infinite {
+  0%   { transform: translateX(-100%) skewY(-8deg); }
+  100% { transform: translateX(100%) skewY(-8deg); }
+}
+@keyframes glare-sweep {
+  0%   { transform: translateX(0) skewX(12deg); }
+  100% { transform: translateX(400%) skewX(12deg); }
+}
+
+.animate-float      { animation: float-slow 6s ease-in-out infinite; }
+.animate-pulse-fast { animation: pulse-fast 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+.moving-bar         { animation: slide-infinite 8s linear infinite; }
+.group:hover .glare { animation: glare-sweep 0.8s ease-out; }
+
+/* Motion explains a change; it should never be the only thing conveying one. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-pulse-fast,
+  .moving-bar,
+  .group:hover .glare { animation: none; }
+  * { transition-duration: 0.01ms !important; }
+}
