@@ -342,10 +342,7 @@ const LessonView: React.FC = () => {
     const handleAnswer = (blockIndex: number, correct: boolean) => {
         if (answeredBlocks.current.has(blockIndex)) return; // first attempt is the one that counts
         answeredBlocks.current.add(blockIndex);
-        if (!correct) {
-            mistakeBlocks.current.add(blockIndex);
-            setScore(prev => Math.max(1, prev - 1));
-        }
+        if (!correct) mistakeBlocks.current.add(blockIndex);
     };
 
     useEffect(() => {
@@ -373,14 +370,25 @@ const LessonView: React.FC = () => {
     const handleFinish = async () => {
         setFinishing(true);
         const timeSpent = Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000));
+
+        // The March build derived the stored mark from the result rather than
+        // from a running counter, and counted anything left unanswered against
+        // it. A counter that only ever decrements on a mistake records full
+        // marks for a lesson clicked straight through - which is what the
+        // student saw on screen, and what the teacher's statistics would show.
+        const scored = blocks.filter(b => SCORED_TYPES.includes(b.type)).length;
+        const correct = answeredBlocks.current.size - mistakeBlocks.current.size;
+        const mark = scored > 0 ? Math.max(1, Math.round((correct / scored) * 10)) : 10;
+        setScore(mark);
+
         try {
             await fetch(`${API}/api/lessons/${id}/finish`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: USER_ID, needsTeacherReview: false, score, timeSpent })
+                body: JSON.stringify({ userId: USER_ID, needsTeacherReview: false, score: mark, timeSpent })
             });
             setResults({
-                correct: answeredBlocks.current.size - mistakeBlocks.current.size,
+                correct,
                 mistakes: mistakeBlocks.current.size,
                 timeSpent,
             });

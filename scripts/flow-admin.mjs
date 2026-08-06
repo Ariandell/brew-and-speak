@@ -6,6 +6,9 @@
 //
 // Expects the server running against sandbox/sandbox.sqlite. Run the student
 // flow first if you want homework waiting to be graded.
+//
+// Reseed between runs: this flow bolds text and saves it, so a second run
+// against the same database finds nothing left unformatted to bold.
 
 import { launch } from './drive.mjs';
 import path from 'path';
@@ -77,8 +80,11 @@ const main = async () => {
         ed.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
         return ed.innerHTML;
     })()`);
-    const html = String(pasteClean);
-    check('вставка чиститься', !/onclick|style=|<script/i.test(html) && /жирним/.test(html), html.slice(0, 70));
+    // The live contentEditable is not the thing to inspect: execCommand leaves
+    // a <span style> behind at the insertion point. What matters is what the
+    // editor reports upward and therefore stores, which is checked after the
+    // save and reload below.
+    check('вставка прийнялася', /жирним/.test(String(pasteClean)), String(pasteClean).slice(0, 70));
 
     // Mood picker.
     const moodSet = await b.evaluate(`(() => {
@@ -109,11 +115,18 @@ const main = async () => {
     await b.goto(`${BASE}/admin/lesson/1`, 3500);
     const persisted = await b.evaluate(`(() => {
         const ed = document.querySelector('.rich-editor');
+        const html = ed ? ed.innerHTML : '';
         const words = document.querySelectorAll('input[placeholder="Слово (en)"]').length;
-        return JSON.stringify({ bold: /<(b|strong)\\b/i.test(ed ? ed.innerHTML : ''), words });
+        return JSON.stringify({
+            bold: /<(b|strong)\\b/i.test(html),
+            dirty: /<(script|iframe)\\b|\\son\\w+\\s*=|\\sstyle\\s*=|<span\\b/i.test(html),
+            words,
+        });
     })()`);
     const p = JSON.parse(persisted);
     check('форматування пережило перезавантаження', p.bold);
+    // Reloaded content comes from the database, so this is what was stored.
+    check('збережене не містить атрибутів і span', !p.dirty);
     check('слова збереглися', p.words > before, `${p.words} слів`);
 
     await b.goto(`${BASE}/admin/students`, 3000);
