@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useUserId } from '../components/TelegramProvider';
 import { toPlainText } from '../utils/plainText';
+import { RichText } from '../utils/RichText';
 
 const API = '';
 
@@ -15,6 +16,26 @@ const HomeworkSubmit: React.FC = () => {
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState('');
     const [uploadProgress, setUploadProgress] = useState(0);
+    const [prompt, setPrompt] = useState('');
+
+    // Students used to be able to read the task while answering it. Pressing
+    // "здати" navigated them away from the lesson to a page holding nothing but
+    // an empty box, so they had to go back to remember what was asked. Load the
+    // lesson's homework block and put it back above the answer field.
+    useEffect(() => {
+        if (!lessonId) return;
+        fetch(`${API}/api/lessons/${lessonId}/blocks`)
+            .then(r => r.json())
+            .then(blocks => {
+                const block = (Array.isArray(blocks) ? blocks : []).find((b: any) => b.type === 'homework');
+                let content = block?.content;
+                if (typeof content === 'string') {
+                    try { content = JSON.parse(content); } catch { content = {}; }
+                }
+                setPrompt(content?.prompt || '');
+            })
+            .catch(() => { });
+    }, [lessonId]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -114,6 +135,19 @@ const HomeworkSubmit: React.FC = () => {
             </header>
 
             <form onSubmit={handleSubmit} style={{ padding: '1rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* The task itself, above the answer - restored from the March build */}
+                {prompt.trim() && (
+                    <div style={{
+                        backgroundColor: '#f0fdf4', borderRadius: '16px', padding: '1.2rem',
+                        border: '1px solid #bbf7d0', color: '#166534', lineHeight: 1.5
+                    }}>
+                        <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Завдання:
+                        </h3>
+                        <RichText value={prompt} />
+                    </div>
+                )}
+
                 {/* Text answer */}
                 <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#888', marginBottom: '8px' }}>ТЕКСТОВА ВІДПОВІДЬ</label>
