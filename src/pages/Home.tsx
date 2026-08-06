@@ -282,6 +282,24 @@ const Home: React.FC = () => {
                                                     {isCompleted && (
                                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                                                             <div style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #10b981', padding: '6px 14px', borderRadius: '99px', fontSize: '0.8rem', fontWeight: 600 }}>Пройдено</div>
+                                                            {/* Where the lesson's homework stands, restored from the March
+                                                                build: without it a finished lesson looks done even when the
+                                                                homework has not been handed in. */}
+                                                            {lesson.has_homework && (
+                                                                <div
+                                                                    onClick={e => { e.stopPropagation(); if (lesson.homework_status !== 'graded') navigate(`/homework/${lesson.id}`); }}
+                                                                    style={{
+                                                                        background: lesson.homework_status === 'graded' ? '#dcfce7' : lesson.homework_status === 'pending' ? '#fef3c7' : '#fee2e2',
+                                                                        color: lesson.homework_status === 'graded' ? '#166534' : lesson.homework_status === 'pending' ? '#92400e' : '#dc2626',
+                                                                        border: `1px solid ${lesson.homework_status === 'graded' ? '#bbf7d0' : lesson.homework_status === 'pending' ? '#fde68a' : '#dc2626'}`,
+                                                                        padding: '6px 14px', borderRadius: '99px', fontSize: '0.7rem', fontWeight: 800,
+                                                                        cursor: lesson.homework_status === 'graded' ? 'default' : 'pointer',
+                                                                        textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap',
+                                                                    }}
+                                                                >
+                                                                    {lesson.homework_status === 'graded' ? '✅ ДЗ оцінено' : lesson.homework_status === 'pending' ? '⏳ ДЗ на перевірці' : '❗️ Здати ДЗ'}
+                                                                </div>
+                                                            )}
                                                             {!isAdmin && lesson.completed_at && getReplayTimeLeft(lesson.completed_at) && (
                                                                 <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>
                                                                     Повтор за {getReplayTimeLeft(lesson.completed_at)}

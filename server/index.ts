@@ -114,12 +114,30 @@ app.post('/api/users/:userId/enroll', async (req, res) => {
         const { courseId } = req.body;
         if (!courseId) return res.status(400).json({ error: 'courseId required' });
 
-        // Simple update since the user must already exist via /sync
-        await db.prepare(`
-            UPDATE users SET enrolled_course_id = ? WHERE telegram_id = ?
-        `).run(courseId, userId.toString());
+        const course = await db.prepare('SELECT id FROM levels WHERE id = ?').get(courseId);
+        if (!course) return res.status(404).json({ error: 'Course not found' });
 
-        res.json({ success: true });
+        // This used to assume /sync had already created the row and answered
+        // success either way. A student who picked a course before that request
+        // landed updated nothing, was told it worked, and got sent back to the
+        // picker - the local cache hid it until that cache went away.
+        const updated = await db.prepare(
+            'UPDATE users SET enrolled_course_id = ? WHERE telegram_id = ?'
+        ).run(courseId, userId.toString());
+
+        if (!updated.changes) {
+            await db.prepare(`
+                INSERT INTO users (telegram_id, enrolled_course_id) VALUES (?, ?)
+                ON CONFLICT(telegram_id) DO UPDATE SET enrolled_course_id = ?
+            `).run(userId.toString(), courseId, courseId);
+        }
+
+        const check = await db.prepare('SELECT enrolled_course_id FROM users WHERE telegram_id = ?').get(userId.toString());
+        if (Number(check?.enrolled_course_id) !== Number(courseId)) {
+            return res.status(500).json({ error: 'Не вдалося зберегти курс' });
+        }
+
+        res.json({ success: true, courseId });
     } catch (error) {
         console.error('Failed to enroll:', error);
         res.status(500).json({ error: 'Failed to enroll' });
@@ -206,6 +224,12 @@ app.get('/api/courses/:courseId/path/:userId', async (req, res) => {
         const hwMap: Record<number, any> = {};
         homeworkList.forEach((h: any) => hwMap[h.lesson_id] = h);
 
+        // Which lessons ask for homework at all, so a card can prompt for one.
+        const withHomework = await db.prepare(
+            `SELECT DISTINCT lesson_id FROM lesson_blocks WHERE type = 'homework' AND lesson_id IN (SELECT id FROM lessons WHERE level_id = ?)`
+        ).all(courseId);
+        const homeworkLessons = new Set((withHomework || []).map((r: any) => r.lesson_id));
+
         const courseLessonIds = new Set(lessons.map((l: any) => l.id));
         const hasAnyProgress = progressList.some((p: any) => courseLessonIds.has(p.lesson_id));
 
@@ -248,7 +272,11 @@ app.get('/api/courses/:courseId/path/:userId', async (req, res) => {
                 completed_at: completedAt,
                 homework_grade: hw ? hw.grade : null,
                 homework_feedback: hw ? hw.feedback : null,
-                homework_status: hw ? hw.status : null
+                homework_status: hw ? hw.status : null,
+                // Without this the card cannot tell "no homework in this lesson"
+                // apart from "homework not handed in yet" - both leave
+                // homework_status null - so it could never prompt for one.
+                has_homework: homeworkLessons.has(lesson.id)
             };
         });
 

@@ -35,15 +35,18 @@ const main = async () => {
     // A new student has no course, so the app should offer the picker.
     if ((await b.url()).includes('/courses')) {
         check('новачка ведуть на вибір курсу', true);
-        await b.clickText('Пісочниця A1');
-        await b.wait(2000);
+        // The card carries the course name too - press the button, not the card.
+        await b.clickText('Вибрати цей курс');
+        await b.wait(2500);
         await shot('course-picked');
     }
 
     await b.goto(`${BASE}/`, 2500);
     text = await b.text();
     await shot('home');
-    check('головна показує курс', text.includes('Пісочниця A1') || text.includes('ПОТОЧНИЙ КУРС'));
+    // Being on /courses would also contain the course name, so check the route.
+    check('запис на курс зберігся', !(await b.url()).includes('/courses'), await b.url());
+    check('головна показує курс', text.includes('ПОТОЧНИЙ КУРС') || text.includes('Пісочниця A1'));
     check('головна не порожня', text.replace(/\s/g, '').length > 40, `${text.replace(/\s/g, '').length} символів`);
 
     await b.goto(`${BASE}/lesson/1`, 2500);
@@ -107,6 +110,15 @@ const main = async () => {
     text = await b.text();
     await shot('homework-sent');
     check('ДЗ відправлено', text.includes('Відправлено'));
+
+    // Back on the course list, the finished lesson should say its homework is
+    // now waiting to be marked.
+    await b.goto(`${BASE}/`, 3000);
+    text = await b.text();
+    await shot('home-after-homework');
+    // The badge is uppercased by CSS, and innerText reflects that.
+    const badge = (text.match(/[^\n]*(ЗДАТИ ДЗ|ПЕРЕВІРЦІ|ОЦІНЕНО)[^\n]*/i) || ['не показано'])[0].trim();
+    check('на картці уроку видно стан ДЗ', /ДЗ на перевірці/i.test(text), badge);
 
     await b.goto(`${BASE}/flashcards`, 3000);
     await shot('flashcards');
