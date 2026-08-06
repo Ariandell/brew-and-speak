@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // Telegram usernames that get the 'teacher' role on sync (must match useIsAdmin on the frontend)
-const ADMIN_USERNAMES = ['olia16', 'ariandel21', 'demo_user'];
+const ADMIN_USERNAMES = ['olia16', 'ariandel21'];
 
 // Serve static frontend in production
 const distDir = resolve(__dirname, '../dist');

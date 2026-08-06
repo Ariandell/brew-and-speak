@@ -117,7 +117,12 @@ export const useUserId = () => {
 // Helper hook to check if the current user is an admin
 export const useIsAdmin = () => {
     const { user } = useTelegram();
-    if (!user) return true; // Default true in local dev without tg sdk (optional, but safe for testing)
-    const adminUsernames = ['olia16', 'ariandel21', 'demo_user'];
+    // Opening the site outside Telegram used to count as being an admin: there
+    // is no user, and the fallback one is called demo_user, which was on the
+    // list. Anyone with the link got the teacher's panel. Vite strips the dev
+    // branch from production builds, so local work is unaffected.
+    if (import.meta.env.DEV) return true;
+    if (!user) return false;
+    const adminUsernames = ['olia16', 'ariandel21'];
     return adminUsernames.includes((user.username || '').toLowerCase());
 };
