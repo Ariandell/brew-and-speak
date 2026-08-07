@@ -1,11 +1,13 @@
 import { Screen } from '../../ui/Screen';
 import { Card } from '../../ui/Card';
 import { Button } from '../../ui/Button';
-import { MascotAnimated } from '../../ui/MascotAnimated';
+import { HeroMascot } from './HeroMascot';
 import { Backdrop } from './Backdrop';
 
 interface Props {
     onStart: () => void;
+    /** True while the planes are covering, so the mascot can leave with them. */
+    leaving: boolean;
 }
 
 /**
@@ -18,34 +20,43 @@ interface Props {
  * The entrance is choreographed against the opening sweep rather than started
  * with it: the planes clear the screen first, then the card lands, then the
  * wordmark is uncovered in the same direction the planes travelled.
+ *
+ * The column carries no z-index on purpose. Stacking on it would trap the
+ * mascot inside this screen's layer, and on the way out the mascot has to rise
+ * above the planes. Order in the markup already puts it over the backdrop.
  */
-export const Welcome = ({ onStart }: Props) => (
+export const Welcome = ({ onStart, leaving }: Props) => (
     <Screen>
         <Backdrop />
 
-        <div className="relative z-10 flex flex-grow flex-col items-center justify-center px-6 py-8">
-            <Card
-                level={3}
-                className="animate-settle relative flex h-[300px] w-[300px] max-w-full items-center justify-center rounded-xl"
-                style={{ animationDelay: '340ms' }}
-            >
-                {/* Bounced light behind the cup, then its contact shadow. Both
-                    sit under the mascot so neither can catch a tap. */}
-                <div className="glow-blue pointer-events-none absolute inset-x-6 bottom-12 top-6" />
-                <div className="contact-shadow pointer-events-none absolute bottom-7 h-9 w-[200px]" />
+        <div className="relative flex flex-grow flex-col items-center justify-center px-6 py-8">
+            {/* The mascot is a sibling of the card, not a child. `animate-settle`
+                leaves a transform on the card, and a transform makes a stacking
+                context for good - the mascot would be sealed inside it and could
+                never rise above the planes on its way out. */}
+            <div className="relative flex h-[300px] w-[300px] max-w-full items-center justify-center">
+                <Card
+                    level={3}
+                    className={`animate-settle absolute inset-0 rounded-xl transition-opacity duration-300 ${leaving ? 'opacity-0' : 'opacity-100'}`}
+                    style={{ animationDelay: '340ms' }}
+                >
+                    {/* Bounced light behind the cup, then its contact shadow. */}
+                    <div className="glow-blue pointer-events-none absolute inset-x-6 bottom-12 top-6" />
+                    <div className="contact-shadow pointer-events-none absolute bottom-7 h-9 w-[200px]" />
+                </Card>
 
-                <MascotAnimated mood="perfect" size={244} className="relative -mt-2" />
-            </Card>
+                <HeroMascot leaving={leaving} />
+            </div>
 
             <h1
-                className="animate-wipe mt-8 text-[40px] font-extrabold leading-none tracking-tight text-ink"
+                className={`animate-wipe mt-8 text-[40px] font-extrabold leading-none tracking-tight text-ink transition-opacity duration-200 ${leaving ? 'opacity-0' : 'opacity-100'}`}
                 style={{ animationDelay: '470ms' }}
             >
                 Brew &amp; Speak
             </h1>
 
             <p
-                className="animate-rise mt-3 max-w-[270px] text-center text-[16px] font-medium leading-relaxed text-ink-soft"
+                className={`animate-rise mt-3 max-w-[270px] text-center text-[16px] font-medium leading-relaxed text-ink-soft transition-opacity duration-200 ${leaving ? 'opacity-0' : 'opacity-100'}`}
                 style={{ animationDelay: '640ms' }}
             >
                 Вчи англійську зі смаком кави та літнім настроєм
