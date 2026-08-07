@@ -22,6 +22,22 @@
   /* The contact shadow directly under an object. Separate from the ambient
      shadow because it stays tight and dark while the ambient one spreads. */
   .contact-shadow { background: radial-gradient(closest-side, rgba(15, 27, 51, 0.22), rgba(15, 27, 51, 0)); }
+
+  /* Hairlines across the accent plane. Close to invisible on its own, but it
+     is what stops a large flat fill reading as untouched paint. */
+  .plane-grain {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.055) 0 2px,
+      transparent 2px 15px
+    );
+  }
+
+  /* Texture for the paper areas. Faint enough to be felt, not seen. */
+  .paper-grid {
+    background-image: radial-gradient(rgba(90, 103, 130, 0.32) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
 }
 
 @keyframes rise {
@@ -29,10 +45,35 @@
   to   { opacity: 1; transform: none; }
 }
 
-.animate-rise { animation: rise 320ms cubic-bezier(0.34, 1.28, 0.64, 1) both; }
+/* Type arrives by being uncovered, in the same direction the planes travel -
+   so the wordmark reads as something the sweep left behind. */
+@keyframes wipe {
+  from { opacity: 0; clip-path: inset(0 100% -30% 0); }
+  to   { opacity: 1; clip-path: inset(0 -10% -30% 0); }
+}
+
+/* For anything that should land rather than appear: slightly oversized, then
+   settling to true size. */
+@keyframes settle {
+  from { opacity: 0; transform: scale(1.14); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) rotate(45deg); }
+  50%      { transform: translate(5px, -11px) rotate(45deg); }
+}
+
+.animate-rise   { animation: rise 320ms cubic-bezier(0.34, 1.28, 0.64, 1) both; }
+.animate-wipe   { animation: wipe 620ms cubic-bezier(0.2, 0, 0, 1) both; }
+.animate-settle { animation: settle 520ms cubic-bezier(0.34, 1.28, 0.64, 1) both; }
+.animate-drift  { animation: drift 7s ease-in-out infinite; }
 
 /* Motion explains a change; it must never be the only thing conveying one. */
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise { animation: none; }
+  .animate-rise,
+  .animate-wipe,
+  .animate-settle,
+  .animate-drift { animation: none; }
   * { transition-duration: 0.01ms !important; }
 }

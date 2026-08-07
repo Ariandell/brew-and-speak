@@ -14,6 +14,10 @@ interface Props {
  * One centred column rather than a growing hero plus a fixed footer - split in
  * two, the growing half swallows the spare height and opens a hole above the
  * mascot on tall phones while the rest stays glued to the bottom.
+ *
+ * The entrance is choreographed against the opening sweep rather than started
+ * with it: the planes clear the screen first, then the card lands, then the
+ * wordmark is uncovered in the same direction the planes travelled.
  */
 export const Welcome = ({ onStart }: Props) => (
     <Screen>
@@ -22,7 +26,8 @@ export const Welcome = ({ onStart }: Props) => (
         <div className="relative z-10 flex flex-grow flex-col items-center justify-center px-6 py-8">
             <Card
                 level={3}
-                className="animate-rise relative flex h-[300px] w-[300px] max-w-full items-center justify-center rounded-xl"
+                className="animate-settle relative flex h-[300px] w-[300px] max-w-full items-center justify-center rounded-xl"
+                style={{ animationDelay: '340ms' }}
             >
                 {/* Bounced light behind the cup, then its contact shadow. Both
                     sit under the mascot so neither can catch a tap. */}
@@ -33,20 +38,20 @@ export const Welcome = ({ onStart }: Props) => (
             </Card>
 
             <h1
-                className="animate-rise mt-8 text-[40px] font-extrabold leading-none tracking-tight text-ink"
-                style={{ animationDelay: '80ms' }}
+                className="animate-wipe mt-8 text-[40px] font-extrabold leading-none tracking-tight text-ink"
+                style={{ animationDelay: '470ms' }}
             >
                 Brew &amp; Speak
             </h1>
 
             <p
                 className="animate-rise mt-3 max-w-[270px] text-center text-[16px] font-medium leading-relaxed text-ink-soft"
-                style={{ animationDelay: '140ms' }}
+                style={{ animationDelay: '640ms' }}
             >
                 Вчи англійську зі смаком кави та літнім настроєм
             </p>
 
-            <div className="animate-rise mt-9 w-full" style={{ animationDelay: '200ms' }}>
+            <div className="animate-rise mt-9 w-full" style={{ animationDelay: '730ms' }}>
                 <Button onClick={onStart} trailing="→">
                     Почати навчання
                 </Button>
