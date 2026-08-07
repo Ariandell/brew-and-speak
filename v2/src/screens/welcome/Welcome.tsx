@@ -16,18 +16,13 @@ interface Props {
  * mascot on tall phones while the rest stays glued to the bottom.
  */
 export const Welcome = ({ onStart }: Props) => (
-    <Screen className="bg-paper">
+    <Screen>
         <Backdrop />
 
         <div className="relative z-10 flex flex-grow flex-col items-center justify-center px-6 py-8">
-            <span className="animate-rise rounded-pill bg-blue-soft px-4 py-1.5 text-[12px] font-extrabold uppercase tracking-wider text-blue">
-                Англійська з Ольгою
-            </span>
-
             <Card
                 level={3}
-                className="animate-rise relative mt-7 flex h-[300px] w-[300px] max-w-full items-center justify-center rounded-xl"
-                style={{ animationDelay: '80ms' }}
+                className="animate-rise relative flex h-[300px] w-[300px] max-w-full items-center justify-center rounded-xl"
             >
                 {/* Bounced light behind the cup, then its contact shadow. Both
                     sit under the mascot so neither can catch a tap. */}
@@ -39,19 +34,19 @@ export const Welcome = ({ onStart }: Props) => (
 
             <h1
                 className="animate-rise mt-8 text-[40px] font-extrabold leading-none tracking-tight text-ink"
-                style={{ animationDelay: '160ms' }}
+                style={{ animationDelay: '80ms' }}
             >
                 Brew &amp; Speak
             </h1>
 
             <p
                 className="animate-rise mt-3 max-w-[270px] text-center text-[16px] font-medium leading-relaxed text-ink-soft"
-                style={{ animationDelay: '220ms' }}
+                style={{ animationDelay: '140ms' }}
             >
                 Вчи англійську зі смаком кави та літнім настроєм
             </p>
 
-            <div className="animate-rise mt-9 w-full" style={{ animationDelay: '280ms' }}>
+            <div className="animate-rise mt-9 w-full" style={{ animationDelay: '200ms' }}>
                 <Button onClick={onStart} trailing="→">
                     Почати навчання
                 </Button>
