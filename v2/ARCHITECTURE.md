@@ -6,7 +6,7 @@
 ```
 src/
   app/        точка входу, збірка застосунку, глобальні стилі
-  ui/         дизайн-система: Button, Panel, Screen, Mascot, MonoNote
+  ui/         дизайн-система: Button, Card, Screen, Mascot, MascotAnimated
   screens/    по теці на екран, усе своє всередині
   api/        єдине місце, що говорить із сервером
   types/      доменні типи, спільні для екранів
@@ -34,7 +34,7 @@ const Welcome = () => { const nav = useNavigate(); ... nav('/courses') }
 
 ## 2. Стилі не пишуться інлайном
 
-Кнопка живе в `ui/Button.tsx`. Панель — в `ui/Panel.tsx`. Кольори — в
+Кнопка живе в `ui/Button.tsx`. Картка — в `ui/Card.tsx`. Кольори, радіуси й тіні — в
 `tailwind.config.js`.
 
 У старому додатку стиль кнопки був повторений інлайном у сорока місцях, тому

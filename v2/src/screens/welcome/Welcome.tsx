@@ -1,7 +1,6 @@
 import { Screen } from '../../ui/Screen';
-import { Panel } from '../../ui/Panel';
+import { Card } from '../../ui/Card';
 import { Button } from '../../ui/Button';
-import { MonoNote } from '../../ui/MonoNote';
 import { MascotAnimated } from '../../ui/MascotAnimated';
 import { Backdrop } from './Backdrop';
 
@@ -9,68 +8,54 @@ interface Props {
     onStart: () => void;
 }
 
-/** First screen: title, mascot, one action. */
+/**
+ * First screen: mascot, name, one action.
+ *
+ * One centred column rather than a growing hero plus a fixed footer - split in
+ * two, the growing half swallows the spare height and opens a hole above the
+ * mascot on tall phones while the rest stays glued to the bottom.
+ */
 export const Welcome = ({ onStart }: Props) => (
-    <Screen className="bg-sand">
+    <Screen className="bg-paper">
         <Backdrop />
 
-        <section className="relative z-20 flex flex-col px-6 pt-12">
-            <div className="relative w-full">
-                <h1 className="skew-plane -translate-x-2 text-[72px] font-black italic leading-none tracking-tighter text-paper drop-shadow-lg">
-                    BREW
-                </h1>
-                <h1 className="skew-plane text-outline-light pointer-events-none absolute left-0 top-0 translate-x-1 translate-y-1 text-[72px] font-black italic leading-none opacity-50">
-                    BREW
-                </h1>
+        <div className="relative z-10 flex flex-grow flex-col items-center justify-center px-6 py-8">
+            <span className="animate-rise rounded-pill bg-blue-soft px-4 py-1.5 text-[12px] font-extrabold uppercase tracking-wider text-blue">
+                Англійська з Ольгою
+            </span>
+
+            <Card
+                level={3}
+                className="animate-rise relative mt-7 flex h-[300px] w-[300px] max-w-full items-center justify-center rounded-xl"
+                style={{ animationDelay: '80ms' }}
+            >
+                {/* Bounced light behind the cup, then its contact shadow. Both
+                    sit under the mascot so neither can catch a tap. */}
+                <div className="glow-blue pointer-events-none absolute inset-x-6 bottom-12 top-6" />
+                <div className="contact-shadow pointer-events-none absolute bottom-7 h-9 w-[200px]" />
+
+                <MascotAnimated mood="perfect" size={244} className="relative -mt-2" />
+            </Card>
+
+            <h1
+                className="animate-rise mt-8 text-[40px] font-extrabold leading-none tracking-tight text-ink"
+                style={{ animationDelay: '160ms' }}
+            >
+                Brew &amp; Speak
+            </h1>
+
+            <p
+                className="animate-rise mt-3 max-w-[270px] text-center text-[16px] font-medium leading-relaxed text-ink-soft"
+                style={{ animationDelay: '220ms' }}
+            >
+                Вчи англійську зі смаком кави та літнім настроєм
+            </p>
+
+            <div className="animate-rise mt-9 w-full" style={{ animationDelay: '280ms' }}>
+                <Button onClick={onStart} trailing="→">
+                    Почати навчання
+                </Button>
             </div>
-
-            <div className="relative z-30 mt-[-10px] flex w-full justify-end">
-                <Panel tilt="right" className="border-l-4 border-coral bg-ink px-4 py-2 shadow-xl">
-                    <h2 className="text-[28px] font-extrabold italic leading-none tracking-tight text-paper">
-                        YOUR ENGLISH
-                    </h2>
-                </Panel>
-            </div>
-        </section>
-
-        <section className="relative z-30 mt-[-20px] flex flex-grow items-center justify-center">
-            {/* No float on this group: the mascot now breathes on its own, and
-                drifting the frame as well turns two readable motions into soup. */}
-            <div className="relative flex h-[300px] w-[300px] items-center justify-center">
-                <Panel tilt="left" className="absolute h-[210px] w-[210px] -translate-x-5 translate-y-5 rounded-3xl bg-blue-deep opacity-80 mix-blend-multiply" />
-                {/* The cup is the accent colour, so on the blue plane it needs
-                    something light behind it or it reads as a silhouette. */}
-                <Panel tilt="right" className="absolute z-0 h-[250px] w-[250px] border-4 border-blue-hot bg-paper shadow-2xl" />
-
-                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                    <div className="h-px w-full bg-blue-hot/40" />
-                    <div className="absolute h-full w-px bg-blue-hot/40" />
-                </div>
-
-                <MascotAnimated
-                    mood="perfect"
-                    size={230}
-                    className="relative z-20 drop-shadow-[0_20px_30px_rgba(0,0,0,0.4)] transition-transform duration-300 ease-snappy hover:scale-110"
-                />
-            </div>
-        </section>
-
-        <section className="relative z-40 flex flex-col items-center justify-end px-6 pb-12 pt-8">
-            <div className="relative mb-8 -skew-x-12 border-2 border-ink bg-paper px-4 py-2 shadow-[4px_4px_0_#0F1B33]">
-                <div className="absolute -left-2 -top-2 h-2 w-2 bg-coral" />
-                <p className="text-[14px] font-bold uppercase italic tracking-wider text-ink">
-                    Вчи англійську зі смаком кави та літнім настроєм.
-                </p>
-            </div>
-
-            <Button onClick={onStart} trailing="→">
-                Почати навчання
-            </Button>
-
-            <div className="mt-6 flex w-full justify-between text-ink-soft/70">
-                <MonoNote>// SYS_READY</MonoNote>
-                <MonoNote>ENG_MODULE_01</MonoNote>
-            </div>
-        </section>
+        </div>
     </Screen>
 );

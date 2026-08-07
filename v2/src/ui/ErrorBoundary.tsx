@@ -19,13 +19,13 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
     render() {
         if (!this.state.error) return this.props.children;
         return (
-            <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-sand px-8 text-center">
+            <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-paper px-8 text-center">
                 <div className="text-5xl">☕</div>
-                <h1 className="text-xl font-black italic uppercase text-ink">Щось пішло не так</h1>
-                <p className="text-sm text-ink-soft">Спробуйте оновити сторінку.</p>
+                <h1 className="text-[22px] font-extrabold tracking-tight text-ink">Щось пішло не так</h1>
+                <p className="text-[15px] font-medium text-ink-soft">Спробуйте оновити сторінку.</p>
                 <button
                     onClick={() => window.location.reload()}
-                    className="mt-2 -skew-x-12 bg-blue-hot px-6 py-3 font-black uppercase italic text-paper shadow-[6px_6px_0_#0F1B33]"
+                    className="mt-2 rounded-pill bg-blue px-7 py-3.5 text-[16px] font-extrabold text-paper shadow-accent transition-all duration-150 ease-soft active:translate-y-[2px] active:scale-[0.985] active:shadow-accent-press"
                 >
                     Оновити
                 </button>
