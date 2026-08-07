@@ -13,11 +13,15 @@
 export const CUP_LANDING = {
     /** Rendered height of the landed shape, in px. */
     height: 366,
-    rotate: 80,
-    opacity: 0.22,
-    /** Centre of the landed shape, in px from the frame's left and bottom. */
-    centreX: 108,
-    centreY: 118,
+    rotate: 180,
+    /** Full strength. The shape is already pure white - anything less and the
+     *  ground shows through and reads as grey. */
+    opacity: 1,
+    /** Centre of the landed shape, in px from the frame's left and bottom.
+     *  High enough that the lid stays in frame - upside down and cropped at the
+     *  lid, the shape stops reading as a cup and becomes a plain trapezoid. */
+    centreX: 92,
+    centreY: 196,
 };
 
 /** The landed shape, centred on the landing point. */

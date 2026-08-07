@@ -29,7 +29,10 @@ export const Button = ({ children, variant = 'primary', trailing, className, ...
             'active:translate-y-[2px] active:scale-[0.985]',
             'disabled:pointer-events-none disabled:opacity-50',
             variant === 'primary' && 'bg-blue text-paper shadow-accent active:shadow-accent-press',
-            variant === 'ghost' && 'bg-surface text-blue shadow-soft-1 active:shadow-none',
+            // The hairline is not decoration: a white button can land on a white
+            // shape - the mascot's silhouette does exactly that - and without an
+            // edge of its own it dissolves into whatever it sits on.
+            variant === 'ghost' && 'bg-surface text-blue shadow-soft-2 ring-1 ring-inset ring-line active:shadow-none',
             className,
         )}
     >
