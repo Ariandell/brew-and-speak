@@ -1,36 +1,48 @@
+import { createCupPass, loadCup, type CupColours, type CupMesh } from './cup';
+
 /**
- * The water the app lives in, drawn on the GPU.
+ * The space the app lives in: water, bubbles, and the cup floating in it.
  *
- * No library. It is one full-screen triangle and one fragment shader;
- * three.js would be six hundred kilobytes to do nothing else, and this has to
- * run inside Telegram on a mid-range Android.
+ * No library. three.js would be six hundred kilobytes to do nothing more than
+ * this, and it has to run inside Telegram on a mid-range Android.
  *
- * What produces the look, in order of how much each matters:
+ * The frame is drawn in two resolutions, which is the whole reason this is
+ * built the way it is:
  *
- * 1. **Domain warping.** Noise displaced by noise. This is the whole thing -
- *    plain fbm reads as clouds or fog, warped fbm reads as ink in water. The
- *    difference between the two is one extra sampling step.
- * 2. **A colour ramp, not a gradient.** Colour is looked up along a curve by
- *    the noise value instead of being mixed linearly, and the stops overlap.
- *    That is where the painted edges come from.
- * 3. **Grain.** A smooth gradient on an 8-bit display bands into visible
- *    stripes. Noise per pixel breaks the steps and reads as photographic.
- * 4. **Bubbles in two layers.** Far ones small and slow, near ones large and
- *    quick. The parallax between them is what gives the space depth; no
- *    gradient can do that.
+ *   water  -> a small offscreen texture, then stretched up
+ *   cup    -> straight to the screen at full size, with multisampling
+ *
+ * The water is low frequency and survives being drawn small; softening it
+ * costs nothing and saves most of the fill rate. The cup does not - a silhouette
+ * drawn small and stretched is exactly the staircase edge that reads as cheap.
+ * Keeping them in one canvas rather than two is what will later let the cup
+ * refract the water, which needs the water available as a texture anyway.
+ *
+ * What produces the look of the water, in order of how much each matters:
+ *
+ * 1. **Domain warping.** Noise displaced by noise. Plain fbm reads as clouds;
+ *    warped fbm reads as ink in water. One extra sampling step between them.
+ * 2. **A colour ramp, not a gradient.** Colour is read along a curve by the
+ *    noise value and the stops overlap, which is where the painted edges are.
+ * 3. **Grain**, applied at full resolution in the upscale. A smooth gradient
+ *    on an 8-bit display bands into stripes; noise per pixel breaks them.
+ * 4. **Bubbles in two layers.** The parallax between near and far is what
+ *    gives the space depth, and no gradient can do that.
  *
  * GLSL ES 1.0 on purpose: WebGL2 is not everywhere inside older Android
  * WebViews, and nothing here needs it.
  */
 
-import { createCupPass, loadCup, type CupColours, type CupMesh } from './cup';
-
-const VERT = `
+const FULLSCREEN_VERT = `
 attribute vec2 aPos;
-void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
+varying vec2 vUv;
+void main() {
+    vUv = aPos * 0.5 + 0.5;
+    gl_Position = vec4(aPos, 0.0, 1.0);
+}
 `;
 
-const FRAG = `
+const WATER_FRAG = `
 precision mediump float;
 
 uniform vec2  uRes;
@@ -42,10 +54,9 @@ uniform vec3  uC3;
 uniform vec3  uBubbleTint;
 uniform float uFlow;
 uniform float uBubbles;
-uniform float uGrain;
 
 /* No sin() in the hash. On mobile GPUs the transcendental is the expensive
-   part, and this is called well over a hundred times per pixel. */
+   part, and this is called around fifty times per pixel. */
 float hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
     p += dot(p, p + 45.32);
@@ -63,7 +74,7 @@ float noise(vec2 p) {
     );
 }
 
-/* Four octaves, not six. The fifth and sixth are below the grain and cost as
+/* Four octaves, not six. The fifth and sixth sit below the grain and cost as
    much as everything above them. */
 float fbm(vec2 p) {
     float v = 0.0;
@@ -76,9 +87,9 @@ float fbm(vec2 p) {
     return v;
 }
 
-/* The field that displaces the other field. It is low frequency by its nature
-   and gets multiplied by three before use, so the fine octaves it would carry
-   are invisible - and it is sampled twice per pixel, so they are not cheap. */
+/* The field that displaces the other field. Low frequency by nature, and
+   multiplied by three before use, so its fine octaves are invisible - and it
+   is sampled twice per pixel, so they are not cheap. */
 float fbmCoarse(vec2 p) {
     float v = 0.0;
     float a = 0.5;
@@ -100,26 +111,22 @@ vec3 ramp(float t) {
     return c;
 }
 
-/* One cell of the grid holds at most one bubble. Presence is a multiply, not
-   a branch - a GPU runs both sides of a conditional anyway, so branching here
-   buys nothing. */
+/* One cell of the grid holds at most one bubble, and only that cell is
+   sampled: the bubble is kept small enough and centred far enough from the
+   edges that it can never reach a neighbour, so the eight around it have
+   nothing to contribute. Presence is a multiply, not a branch - a GPU runs
+   both sides of a conditional anyway. */
 float bubbleLayer(vec2 p, float scale, float rise, float seed, out float glint) {
-    glint = 0.0;
     vec2 gp = p * scale + vec2(0.0, -uTime * rise);
 
-    /* The sway is applied to the whole grid, not to each bubble. Per-bubble it
-       cost one sine for every one of the nine cells sampled per pixel, which
-       was the most expensive thing in the shader - and a shared wave reads
-       better anyway, as a current rather than as nine independent wobbles. */
+    /* The sway moves the whole grid, not each bubble: per bubble it cost a
+       sine per cell, and a shared wave reads better anyway - as a current
+       rather than as independent wobbles. */
     gp.x += 0.10 * sin(uTime * 0.55 + gp.y * 1.7 + seed);
 
     vec2 id = floor(gp);
     vec2 f = fract(gp);
 
-    /* One cell, not the nine around it. A bubble is kept small enough and
-       centred far enough from the edges that it can never reach into a
-       neighbour, so the neighbours have nothing to contribute - and sampling
-       them was costing nine times the work for nothing. */
     float h = hash21(id + seed);
     float present = step(0.60, h);
 
@@ -129,8 +136,6 @@ float bubbleLayer(vec2 p, float scale, float rise, float seed, out float glint) 
 
     /* A bubble is a rim, not a disc. */
     float rim = smoothstep(r, r * 0.86, d) - smoothstep(r * 0.83, r * 0.55, d);
-
-    /* The light caught on its upper left. */
     glint = smoothstep(r * 0.30, 0.0, length(f - c + vec2(r * 0.30, -r * 0.30))) * present;
 
     return rim * present;
@@ -166,8 +171,31 @@ void main() {
     float vig = 1.0 - smoothstep(0.35, 1.15, length(uv - 0.5) * 1.25);
     col *= mix(0.80, 1.0, vig);
 
-    col += (hash21(gl_FragCoord.xy + fract(uTime) * 137.0) - 0.5) * uGrain;
+    gl_FragColor = vec4(col, 1.0);
+}
+`;
 
+const UPSCALE_FRAG = `
+precision mediump float;
+
+uniform sampler2D uWater;
+uniform float uTime;
+uniform float uGrain;
+
+varying vec2 vUv;
+
+float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+
+void main() {
+    vec3 col = texture2D(uWater, vUv).rgb;
+    /* Grain belongs here rather than in the water: applied before the stretch
+       it would be blurred into mush, and it is the one thing that has to stay
+       at the size of a real pixel. */
+    col += (hash21(gl_FragCoord.xy + fract(uTime) * 137.0) - 0.5) * uGrain;
     gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -197,14 +225,13 @@ export interface Scene {
     destroy(): void;
 }
 
-/** Above this the extra pixels cost real frames and buy nothing on a phone. */
-const MAX_DPR = 1.25;
 /**
- * The water is low frequency, so it survives being drawn small and scaled up -
- * and the softening helps rather than hurts. Grain grows with it, which reads
- * as film grain instead of pixel noise.
+ * Full resolution for the screen. Two is enough on any phone - beyond it the
+ * pixels are smaller than the eye resolves and the cost is quadratic.
  */
-const RENDER_SCALE = 0.8;
+const MAX_DPR = 2;
+/** The water is drawn at this share of it, then stretched. */
+const WATER_SCALE = 0.55;
 /** The motion is a slow drift; sixty frames a second of it is wasted battery. */
 const FRAME_MS = 1000 / 30;
 
@@ -220,6 +247,18 @@ const compile = (gl: WebGLRenderingContext, type: number, source: string) => {
     return shader;
 };
 
+const link = (gl: WebGLRenderingContext, vert: WebGLShader, frag: WebGLShader, what: string) => {
+    const program = gl.createProgram()!;
+    gl.attachShader(program, vert);
+    gl.attachShader(program, frag);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(`Програма «${what}» не злінкувалась:`, gl.getProgramInfoLog(program));
+        return null;
+    }
+    return program;
+};
+
 /**
  * Returns null when WebGL is unavailable, so the caller can leave its CSS
  * fallback in place. The scene is decoration - it must never be the reason a
@@ -231,76 +270,62 @@ export const createScene = (
     still: boolean,
     meshUrl?: string,
 ): Scene | null => {
-    const gl = (canvas.getContext('webgl', { antialias: false, alpha: false, depth: true }) ??
-        canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+    const gl = (canvas.getContext('webgl', {
+        // Multisampling applies to the default framebuffer only, which is
+        // exactly where the cup is drawn and the only place with edges.
+        antialias: true,
+        alpha: false,
+        depth: true,
+    }) ?? canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
     if (!gl) return null;
 
-    const vert = compile(gl, gl.VERTEX_SHADER, VERT);
-    const frag = compile(gl, gl.FRAGMENT_SHADER, FRAG);
-    if (!vert || !frag) return null;
+    const fullscreenVert = compile(gl, gl.VERTEX_SHADER, FULLSCREEN_VERT);
+    const waterFrag = compile(gl, gl.FRAGMENT_SHADER, WATER_FRAG);
+    const upscaleFrag = compile(gl, gl.FRAGMENT_SHADER, UPSCALE_FRAG);
+    if (!fullscreenVert || !waterFrag || !upscaleFrag) return null;
 
-    const program = gl.createProgram()!;
-    gl.attachShader(program, vert);
-    gl.attachShader(program, frag);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        console.error('Програма не злінкувалась:', gl.getProgramInfoLog(program));
-        return null;
-    }
-    gl.useProgram(program);
+    const waterProgram = link(gl, fullscreenVert, waterFrag, 'вода');
+    const upscaleProgram = link(gl, fullscreenVert, upscaleFrag, 'розтяг');
+    if (!waterProgram || !upscaleProgram) return null;
 
     // One triangle that covers the screen, not two. Fewer vertices, and no
     // seam down the diagonal where the halves would meet.
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(program, 'aPos');
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-    const at = (name: string) => gl.getUniformLocation(program, name);
-    const u = {
-        res: at('uRes'),
-        time: at('uTime'),
-        c0: at('uC0'),
-        c1: at('uC1'),
-        c2: at('uC2'),
-        c3: at('uC3'),
-        bubbleTint: at('uBubbleTint'),
-        flow: at('uFlow'),
-        bubbles: at('uBubbles'),
-        grain: at('uGrain'),
+    const waterU = {
+        pos: gl.getAttribLocation(waterProgram, 'aPos'),
+        res: gl.getUniformLocation(waterProgram, 'uRes'),
+        time: gl.getUniformLocation(waterProgram, 'uTime'),
+        c0: gl.getUniformLocation(waterProgram, 'uC0'),
+        c1: gl.getUniformLocation(waterProgram, 'uC1'),
+        c2: gl.getUniformLocation(waterProgram, 'uC2'),
+        c3: gl.getUniformLocation(waterProgram, 'uC3'),
+        bubbleTint: gl.getUniformLocation(waterProgram, 'uBubbleTint'),
+        flow: gl.getUniformLocation(waterProgram, 'uFlow'),
+        bubbles: gl.getUniformLocation(waterProgram, 'uBubbles'),
+    };
+    const upscaleU = {
+        pos: gl.getAttribLocation(upscaleProgram, 'aPos'),
+        water: gl.getUniformLocation(upscaleProgram, 'uWater'),
+        time: gl.getUniformLocation(upscaleProgram, 'uTime'),
+        grain: gl.getUniformLocation(upscaleProgram, 'uGrain'),
     };
 
-    let current = look;
-    let raf = 0;
-    let last = 0;
-    let alive = true;
-    let frames = 0;
-    let windowStart = 0;
-    let measured = 0;
+    const waterTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, waterTexture);
+    // Linear, so the stretch is a smooth blur rather than visible blocks, and
+    // clamped, so the edge pixels do not wrap around to the far side.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    const pushPalette = () => {
-        gl.uniform3fv(u.c0, current.palette.ramp[0]);
-        gl.uniform3fv(u.c1, current.palette.ramp[1]);
-        gl.uniform3fv(u.c2, current.palette.ramp[2]);
-        gl.uniform3fv(u.c3, current.palette.ramp[3]);
-        gl.uniform3fv(u.bubbleTint, current.palette.bubbleTint);
-        gl.uniform1f(u.flow, current.palette.flow);
-        gl.uniform1f(u.bubbles, current.palette.bubbles);
-        gl.uniform1f(u.grain, current.palette.grain);
-    };
-
-    const resize = () => {
-        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR) * RENDER_SCALE;
-        const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
-        const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
-        if (canvas.width === w && canvas.height === h) return;
-        canvas.width = w;
-        canvas.height = h;
-        gl.viewport(0, 0, w, h);
-        gl.uniform2f(u.res, w, h);
-    };
+    const waterTarget = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, waterTarget);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, waterTexture, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     const cupPass = createCupPass(gl, (type, source) => compile(gl, type, source));
     let cupMesh: CupMesh | null = null;
@@ -312,20 +337,74 @@ export const createScene = (
         });
     }
 
-    const draw = (time: number) => {
-        gl.useProgram(program);
-        gl.uniform1f(u.time, time / 1000);
-        gl.uniform2f(u.res, canvas.width, canvas.height);
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-        gl.enableVertexAttribArray(aPos);
-        gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    let current = look;
+    let raf = 0;
+    let last = 0;
+    let alive = true;
+    let frames = 0;
+    let windowStart = 0;
+    let measured = 0;
+    let width = 0;
+    let height = 0;
+    let waterWidth = 0;
+    let waterHeight = 0;
+
+    const resize = () => {
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+        const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+        if (width === w && height === h) return;
+
+        width = w;
+        height = h;
+        canvas.width = w;
+        canvas.height = h;
+
+        waterWidth = Math.max(1, Math.round(w * WATER_SCALE));
+        waterHeight = Math.max(1, Math.round(h * WATER_SCALE));
+        gl.bindTexture(gl.TEXTURE_2D, waterTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, waterWidth, waterHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    };
+
+    const drawFullscreen = (attribute: number) => {
+        gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+        gl.enableVertexAttribArray(attribute);
+        gl.vertexAttribPointer(attribute, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+
+    const draw = (time: number) => {
+        const seconds = time / 1000;
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, waterTarget);
+        gl.viewport(0, 0, waterWidth, waterHeight);
+        gl.useProgram(waterProgram);
+        gl.uniform2f(waterU.res, waterWidth, waterHeight);
+        gl.uniform1f(waterU.time, seconds);
+        gl.uniform3fv(waterU.c0, current.palette.ramp[0]);
+        gl.uniform3fv(waterU.c1, current.palette.ramp[1]);
+        gl.uniform3fv(waterU.c2, current.palette.ramp[2]);
+        gl.uniform3fv(waterU.c3, current.palette.ramp[3]);
+        gl.uniform3fv(waterU.bubbleTint, current.palette.bubbleTint);
+        gl.uniform1f(waterU.flow, current.palette.flow);
+        gl.uniform1f(waterU.bubbles, current.palette.bubbles);
+        drawFullscreen(waterU.pos);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, width, height);
+        gl.useProgram(upscaleProgram);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, waterTexture);
+        gl.uniform1i(upscaleU.water, 0);
+        gl.uniform1f(upscaleU.time, seconds);
+        gl.uniform1f(upscaleU.grain, current.palette.grain);
+        drawFullscreen(upscaleU.pos);
 
         if (cupPass && cupMesh) {
             // The water wrote no depth, so the buffer has to start clean or the
             // cup tests against whatever was left in it last frame.
             gl.clear(gl.DEPTH_BUFFER_BIT);
-            cupPass.draw(cupMesh, time / 1000, canvas.width / canvas.height, current.cup);
+            cupPass.draw(cupMesh, seconds, width / height, current.cup);
         }
     };
 
@@ -369,15 +448,12 @@ export const createScene = (
     canvas.addEventListener('webglcontextlost', onLost);
 
     resize();
-    pushPalette();
     if (still) draw(0);
     else start();
 
     return {
         setLook(next) {
             current = next;
-            gl.useProgram(program);
-            pushPalette();
             if (still) {
                 resize();
                 draw(0);

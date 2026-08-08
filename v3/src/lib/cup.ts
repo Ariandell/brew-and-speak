@@ -33,8 +33,10 @@ void main() {
 const FRAG = `
 precision mediump float;
 
+uniform vec3 uLid;
+uniform vec3 uBody;
+uniform vec3 uSleeve;
 uniform vec3 uShade;
-uniform vec3 uLight;
 uniform vec3 uRim;
 uniform float uDepthTint;
 
@@ -44,23 +46,36 @@ varying vec3 vLocal;
 void main() {
     vec3 n = normalize(vNormal);
 
-    /* Ambient: sky above, water below. The single biggest cue that an object
+    /* The cup is a body of revolution, so its parts are bands of height - no
+       texture and no texture coordinates are needed to tell them apart. The
+       seams are read off the model's own radius profile - taken as the median
+       radius per slice, because the arms and the moulded face push the maximum
+       out and bury the steps. The arms fall inside the sleeve's band and take
+       its colour by themselves, which is right. */
+    float sleeve = smoothstep(-0.60, -0.55, vLocal.y) * (1.0 - smoothstep(0.28, 0.33, vLocal.y));
+    float lid = smoothstep(0.57, 0.62, vLocal.y);
+    vec3 albedo = mix(uBody, uSleeve, sleeve);
+    albedo = mix(albedo, uLid, lid);
+
+    /* Ambient: light above, water below. The single biggest cue that an object
        is in an environment rather than floating on a flat colour. */
     float up = n.y * 0.5 + 0.5;
-    vec3 col = mix(uShade, uLight, smoothstep(0.10, 0.95, up));
+    vec3 col = albedo * mix(0.42, 1.04, smoothstep(0.05, 0.95, up));
 
-    /* One key light, upper left and slightly toward the viewer. */
+    /* One key light, upper left and slightly toward the viewer. It tints with
+       the surface rather than washing it white - white highlights on a
+       coloured body are what make plastic look like cheap plastic. */
     float key = max(dot(n, normalize(vec3(-0.45, 0.72, 0.52))), 0.0);
-    col += uLight * pow(key, 4.0) * 0.40;
+    col += albedo * pow(key, 4.0) * 0.45;
 
     /* Rim. Facing away from the camera means the surface is turning out of
        sight, which is where light wraps around a body in water. */
     float facing = max(n.z, 0.0);
-    col += uRim * pow(1.0 - facing, 3.0) * 0.85;
+    col += uRim * pow(1.0 - facing, 3.0) * 0.80;
 
-    /* The deeper part of the object sits in more water, so it takes more of
-       the water's colour. Cheap, and it seats the object in the scene. */
-    col = mix(col, uShade, clamp((0.35 - vLocal.y) * uDepthTint, 0.0, 0.55));
+    /* What sits deeper has more water in front of it. Cheap, and it seats the
+       object in the scene instead of on top of it. */
+    col = mix(col, uShade, clamp((0.30 - vLocal.y) * uDepthTint, 0.0, 0.45));
 
     gl_FragColor = vec4(col, 1.0);
 }
@@ -74,10 +89,15 @@ const CAMERA_Z = 3.4;
 /** Share of the visible height the cup takes up. */
 const FILL_HEIGHT = 0.55;
 
+type Vec3 = [number, number, number];
+
 export interface CupColours {
-    shade: [number, number, number];
-    light: [number, number, number];
-    rim: [number, number, number];
+    lid: Vec3;
+    body: Vec3;
+    sleeve: Vec3;
+    /** The water's own colour, mixed into whatever sits deeper. */
+    shade: Vec3;
+    rim: Vec3;
     depthTint: number;
 }
 
@@ -165,8 +185,10 @@ export const createCupPass = (
     const u = {
         model: at('uModel'),
         viewProj: at('uViewProj'),
+        lid: at('uLid'),
+        body: at('uBody'),
+        sleeve: at('uSleeve'),
         shade: at('uShade'),
-        light: at('uLight'),
         rim: at('uRim'),
         depthTint: at('uDepthTint'),
     };
@@ -206,8 +228,10 @@ export const createCupPass = (
             const pitch = Math.sin(time * 0.33) * 0.07;
 
             gl.uniformMatrix4fv(u.model, false, compose(0, bob * scale, 0, yaw, pitch, scale));
+            gl.uniform3fv(u.lid, colours.lid);
+            gl.uniform3fv(u.body, colours.body);
+            gl.uniform3fv(u.sleeve, colours.sleeve);
             gl.uniform3fv(u.shade, colours.shade);
-            gl.uniform3fv(u.light, colours.light);
             gl.uniform3fv(u.rim, colours.rim);
             gl.uniform1f(u.depthTint, colours.depthTint);
 
