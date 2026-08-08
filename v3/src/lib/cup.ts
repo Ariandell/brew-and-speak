@@ -40,8 +40,15 @@ uniform vec3 uFaceInk;
 uniform vec3 uShade;
 uniform vec3 uRim;
 uniform float uDepthTint;
-uniform sampler2D uFace;
-uniform float uFaceOn;
+
+/* The face, as numbers rather than as a picture. Everything is in units of
+   half the distance between the eyes, measured off the reference artwork. */
+uniform float uFaceUnit;
+uniform float uFaceY;
+uniform vec2 uEye;        // radii, x and y
+uniform float uEyeSep;    // half the distance between centres
+uniform vec4 uMouth;      // radius, half span, centre offset, half thickness
+uniform float uMouthFlip; // +1 a smile, -1 the other thing
 
 varying vec3 vNormal;
 varying vec3 vLocal;
@@ -52,12 +59,14 @@ const float SLEEVE_BOTTOM = -0.575;
 const float SLEEVE_TOP = 0.305;
 const float LID_EDGE = 0.595;
 
-/* The face is wrapped round the sleeve rather than mapped through texture
-   coordinates: the sleeve is a cylinder, so the angle about the axis is the
-   horizontal and the height is the vertical. No UVs on the model at all. */
-const float FACE_ARC = 1.15;
-const float FACE_CENTRE_Y = -0.08;
-const float FACE_HALF_HEIGHT = 0.357;
+/* Roughly where the sleeve's wall sits. Using one radius rather than the true
+   one per point keeps the face the same size top to bottom, which a tapering
+   cup would otherwise stretch. */
+const float SLEEVE_RADIUS = 0.62;
+
+/* Softness of every edge, in face units. Wide enough to hide the pixel grid,
+   narrow enough that the eyes stay eyes. */
+const float EDGE = 0.013;
 
 void main() {
     vec3 n = normalize(vNormal);
@@ -73,18 +82,40 @@ void main() {
     vec3 albedo = mix(uBody, mix(uSleeveBottom, uSleeveTop, band), sleeve);
     albedo = mix(albedo, uLid, lid);
 
+    /* The face is drawn, not sampled. Two ellipses and an arc are exactly what
+       it is, and a traced bitmap of them can only ever be a blurry, ragged
+       copy - the eyes in the reference are twenty pixels across and end up two
+       hundred on screen. Drawn, they are clean at any size, cost nothing to
+       download, and the mood becomes a handful of numbers that can be moved
+       rather than a file that can only be swapped. */
     float radius = max(length(vLocal.xz), 0.0001);
     float front = vLocal.z / radius;
-    float u = 0.5 + atan(vLocal.x, vLocal.z) / FACE_ARC;
-    float v = 0.5 - (vLocal.y - FACE_CENTRE_Y) / (2.0 * FACE_HALF_HEIGHT);
-    float inside = step(0.0, u) * step(u, 1.0) * step(0.0, v) * step(v, 1.0);
 
-    /* Fading by how far round the cylinder the surface has turned keeps the
-       decal from smearing down the sides, which is what a flat projection does
-       at grazing angles. */
-    float face = texture2D(uFace, vec2(u, v)).a
-               * inside * smoothstep(0.20, 0.55, front) * sleeve * uFaceOn;
-    albedo = mix(albedo, uFaceInk, face);
+    /* Arc length along the surface, so nothing is stretched: the horizontal is
+       real distance round the cylinder, not an angle. */
+    vec2 f = vec2(atan(vLocal.x, vLocal.z) * SLEEVE_RADIUS, vLocal.y - uFaceY) / uFaceUnit;
+
+    vec2 eye = vec2(abs(f.x) - uEyeSep, f.y) / uEye;
+    float ink = 1.0 - smoothstep(1.0 - EDGE / uEye.x, 1.0 + EDGE / uEye.x, length(eye));
+
+    vec2 m = vec2(f.x, (f.y - uMouth.z) * uMouthFlip);
+    float along = atan(m.x, -m.y);
+    float toStroke;
+    if (abs(along) <= uMouth.y) {
+        toStroke = abs(length(m) - uMouth.x);
+    } else {
+        /* Round caps: past the ends of the span, the nearest point of the
+           stroke is its endpoint. Without this the mouth finishes in a
+           square-cut edge that reads as a mistake. */
+        vec2 cap = uMouth.x * vec2(sign(m.x) * sin(uMouth.y), -cos(uMouth.y));
+        toStroke = length(m - cap);
+    }
+    ink = max(ink, 1.0 - smoothstep(uMouth.w - EDGE, uMouth.w + EDGE, toStroke));
+
+    /* Fading by how far round the cylinder the surface has turned stops the
+       face smearing down the sides, which is what any projection does at
+       grazing angles. */
+    albedo = mix(albedo, uFaceInk, ink * smoothstep(0.20, 0.55, front) * sleeve);
 
     /* Wrapped diffuse rather than a plain dot product: light bleeds a little
        past the terminator, which is what soft matte plastic does and what the
@@ -118,6 +149,33 @@ const CAMERA_Z = 3.4;
 const FILL_HEIGHT = 0.55;
 
 type Vec3 = [number, number, number];
+
+/**
+ * A mood, as geometry. Measured off the reference in units of half the
+ * distance between the eyes, which is the one length everything else on a face
+ * is naturally described against.
+ */
+export interface FaceShape {
+    /** How large that unit is in model units - the size of the whole face. */
+    unit: number;
+    /** Height of the eye line on the sleeve. */
+    centreY: number;
+    eyeRadius: [number, number];
+    eyeSeparation: number;
+    /** Radius, half span, centre offset, half thickness. */
+    mouth: [number, number, number, number];
+    /** +1 a smile, -1 a frown. */
+    mouthFlip: number;
+}
+
+export const HAPPY: FaceShape = {
+    unit: 0.46,
+    centreY: 0.02,
+    eyeRadius: [0.160, 0.165],
+    eyeSeparation: 0.5,
+    mouth: [0.465, 0.879, -0.035, 0.030],
+    mouthFlip: 1,
+};
 
 export interface CupColours {
     lid: Vec3;
@@ -189,41 +247,8 @@ export const loadCup = async (gl: WebGLRenderingContext, url: string): Promise<C
     };
 };
 
-/**
- * The face, as coverage only: white with an alpha channel. The shader decides
- * what colour it is, which is what lets one mask serve every theme - and what
- * will let a mood be swapped by loading a different four-kilobyte file.
- */
-export const loadFace = (gl: WebGLRenderingContext, url: string): Promise<WebGLTexture | null> =>
-    new Promise(resolve => {
-        const image = new Image();
-        image.onload = () => {
-            const texture = gl.createTexture();
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            // Clamped, or wrapping round the cylinder repeats the eyes onto
-            // the back of the cup.
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-            resolve(texture);
-        };
-        image.onerror = () => {
-            console.error('Обличчя не завантажилось:', url);
-            resolve(null);
-        };
-        image.src = url;
-    });
-
 export interface CupPass {
-    draw(
-        mesh: CupMesh,
-        face: WebGLTexture | null,
-        time: number,
-        aspect: number,
-        colours: CupColours,
-    ): void;
+    draw(mesh: CupMesh, face: FaceShape, time: number, aspect: number, colours: CupColours): void;
 }
 
 export const createCupPass = (
@@ -257,8 +282,12 @@ export const createCupPass = (
         shade: at('uShade'),
         rim: at('uRim'),
         depthTint: at('uDepthTint'),
-        face: at('uFace'),
-        faceOn: at('uFaceOn'),
+        faceUnit: at('uFaceUnit'),
+        faceY: at('uFaceY'),
+        eye: at('uEye'),
+        eyeSep: at('uEyeSep'),
+        mouth: at('uMouth'),
+        mouthFlip: at('uMouthFlip'),
     };
 
     let projection: Mat4 | null = null;
@@ -305,10 +334,12 @@ export const createCupPass = (
             gl.uniform3fv(u.rim, colours.rim);
             gl.uniform1f(u.depthTint, colours.depthTint);
 
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, face);
-            gl.uniform1i(u.face, 1);
-            gl.uniform1f(u.faceOn, face ? 1 : 0);
+            gl.uniform1f(u.faceUnit, face.unit);
+            gl.uniform1f(u.faceY, face.centreY);
+            gl.uniform2fv(u.eye, face.eyeRadius);
+            gl.uniform1f(u.eyeSep, face.eyeSeparation);
+            gl.uniform4fv(u.mouth, face.mouth);
+            gl.uniform1f(u.mouthFlip, face.mouthFlip);
 
             gl.bindBuffer(gl.ARRAY_BUFFER, mesh.position);
             gl.enableVertexAttribArray(aPos);

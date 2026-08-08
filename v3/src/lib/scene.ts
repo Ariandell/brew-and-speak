@@ -1,4 +1,4 @@
-import { createCupPass, loadCup, loadFace, type CupColours, type CupMesh } from './cup';
+import { createCupPass, HAPPY, loadCup, type CupColours, type CupMesh } from './cup';
 
 /**
  * The space the app lives in: water, bubbles, and the cup floating in it.
@@ -269,7 +269,6 @@ export const createScene = (
     look: SceneLook,
     still: boolean,
     meshUrl?: string,
-    faceUrl?: string,
 ): Scene | null => {
     const gl = (canvas.getContext('webgl', {
         // Multisampling applies to the default framebuffer only, which is
@@ -330,18 +329,11 @@ export const createScene = (
 
     const cupPass = createCupPass(gl, (type, source) => compile(gl, type, source));
     let cupMesh: CupMesh | null = null;
-    let cupFace: WebGLTexture | null = null;
     if (meshUrl) {
         // The water must not wait on it. If the model never arrives, or arrives
         // broken, the scene is simply the water - which is a complete thing.
         loadCup(gl, meshUrl).then(mesh => {
             cupMesh = mesh;
-        });
-    }
-    if (faceUrl) {
-        // Same again one level down: a cup with no face still floats.
-        loadFace(gl, faceUrl).then(texture => {
-            cupFace = texture;
         });
     }
 
@@ -412,7 +404,7 @@ export const createScene = (
             // The water wrote no depth, so the buffer has to start clean or the
             // cup tests against whatever was left in it last frame.
             gl.clear(gl.DEPTH_BUFFER_BIT);
-            cupPass.draw(cupMesh, cupFace, seconds, width / height, current.cup);
+            cupPass.draw(cupMesh, HAPPY, seconds, width / height, current.cup);
         }
     };
 
