@@ -8,6 +8,7 @@ interface Props {
 }
 
 const MESH_URL = '/models/cup.msh';
+const FACE_URL = '/models/faces/happy.png';
 
 /**
  * The space the app lives in: water, bubbles, and the cup floating in it.
@@ -29,7 +30,7 @@ export const Aquarium = ({ look, onMeter }: Props) => {
         if (!canvas) return;
 
         const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        scene.current = createScene(canvas, look, still, MESH_URL);
+        scene.current = createScene(canvas, look, still, MESH_URL, FACE_URL);
         return () => {
             scene.current?.destroy();
             scene.current = null;
