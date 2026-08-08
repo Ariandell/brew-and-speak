@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Backdrop } from '../ui/Backdrop';
 import { THEMES, applyTheme } from '../app/themes';
 import { ENTRIES } from './registry';
@@ -17,6 +17,7 @@ import { ENTRIES } from './registry';
 export const Workshop = () => {
     const [themeIndex, setThemeIndex] = useState(0);
     const [entryId, setEntryId] = useState(ENTRIES[0].id);
+    const [fps, setFps] = useState(0);
 
     const theme = THEMES[themeIndex];
     const entry = ENTRIES.find(e => e.id === entryId) ?? ENTRIES[0];
@@ -25,7 +26,7 @@ export const Workshop = () => {
 
     return (
         <div className="relative min-h-[100dvh]">
-            <Backdrop palette={theme.shader} />
+            <Backdrop palette={theme.shader} onMeter={useCallback(setFps, [])} />
 
             <div className="relative flex min-h-[100dvh] flex-col">
                 <header className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 py-3 backdrop-blur-sm">
@@ -47,7 +48,12 @@ export const Workshop = () => {
                         </button>
                     ))}
 
-                    <span className="ml-auto flex gap-1">
+                    <span className="ml-auto flex items-center gap-2">
+                        {/* Measured, not guessed: the shader is the one thing here
+                            that can quietly cost a phone its frame rate. */}
+                        <span className="font-mono text-[11px] tabular-nums text-text-faint">
+                            {fps} fps
+                        </span>
                         {THEMES.map((option, index) => (
                             <button
                                 key={option.name}

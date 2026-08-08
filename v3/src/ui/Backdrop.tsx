@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { createBackground, type Palette } from '../lib/background';
+import { createBackground, type Background, type Palette } from '../lib/background';
 
 interface Props {
     palette: Palette;
+    /** Reports frame rate once a second, so the workshop can judge by measurement. */
+    onMeter?: (fps: number) => void;
 }
 
 /**
@@ -16,9 +18,9 @@ interface Props {
  * texture is the point; the drift is not, and drifting light is exactly the
  * kind of thing that setting exists to switch off.
  */
-export const Backdrop = ({ palette }: Props) => {
+export const Backdrop = ({ palette, onMeter }: Props) => {
     const ref = useRef<HTMLCanvasElement>(null);
-    const bg = useRef<ReturnType<typeof createBackground>>(null);
+    const bg = useRef<Background | null>(null);
 
     useEffect(() => {
         const canvas = ref.current;
@@ -39,6 +41,12 @@ export const Backdrop = ({ palette }: Props) => {
     useEffect(() => {
         bg.current?.setPalette(palette);
     }, [palette]);
+
+    useEffect(() => {
+        if (!onMeter) return;
+        const id = window.setInterval(() => onMeter(bg.current?.fps() ?? 0), 1000);
+        return () => clearInterval(id);
+    }, [onMeter]);
 
     return (
         <canvas

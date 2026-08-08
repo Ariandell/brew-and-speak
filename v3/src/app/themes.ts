@@ -1,8 +1,10 @@
+import type { Palette } from '../lib/background';
+
 /**
- * A theme is one set of surface and text colours plus the palette the
- * background shader paints with. Both live together on purpose: the shader is
- * the largest surface on screen, and letting it drift from the interface
- * colours is exactly how a background stops belonging to the app.
+ * A theme is one set of interface colours plus the palette the water is
+ * painted with. Both live together on purpose: the shader is the largest
+ * surface on screen, and letting it drift from the interface colours is
+ * exactly how a background stops belonging to the app.
  *
  * Interface colours are raw `r g b` triplets for Tailwind's alpha modifiers.
  * Shader colours are 0..1 floats because that is what GLSL wants, and
@@ -13,15 +15,7 @@ export interface Theme {
     label: string;
     /** Written onto the root element as CSS variables. */
     vars: Record<string, string>;
-    shader: {
-        base: [number, number, number];
-        glowA: [number, number, number];
-        glowB: [number, number, number];
-        /** How far the light travels from its centre. */
-        reach: number;
-        /** Film grain. Small numbers only - it is there to kill banding. */
-        grain: number;
-    };
+    shader: Palette;
 }
 
 const rgb = (hex: string): [number, number, number] => [
@@ -32,81 +26,81 @@ const rgb = (hex: string): [number, number, number] => [
 
 export const THEMES: Theme[] = [
     {
-        name: 'dawn',
-        label: 'Світанок',
-        vars: {
-            '--c-base': '250 246 240',
-            '--c-surface': '255 255 255',
-            '--c-raised': '255 255 255',
-            '--c-line': '226 220 211',
-            '--c-text': '26 24 33',
-            '--c-text-soft': '95 90 105',
-            '--c-text-faint': '148 143 158',
-            '--c-accent': '43 92 232',
-            '--c-accent-deep': '28 66 186',
-            '--c-accent-tint': '221 231 255',
-            '--c-warm': '236 148 52',
-            '--c-good': '30 160 120',
-            '--c-alert': '224 92 78',
-        },
-        shader: {
-            base: rgb('#F7F1E8'),
-            glowA: rgb('#C9D8FF'),
-            glowB: rgb('#FFE2BC'),
-            reach: 0.95,
-            grain: 0.022,
-        },
-    },
-    {
         name: 'ink',
-        label: 'Ніч',
+        label: 'Глибина',
         vars: {
-            '--c-base': '13 16 28',
-            '--c-surface': '24 28 44',
-            '--c-raised': '32 37 56',
-            '--c-line': '48 55 78',
-            '--c-text': '238 240 248',
-            '--c-text-soft': '160 168 190',
-            '--c-text-faint': '110 118 140',
-            '--c-accent': '92 134 255',
-            '--c-accent-deep': '62 100 220',
-            '--c-accent-tint': '38 48 82',
+            '--c-base': '9 12 24',
+            '--c-surface': '22 27 44',
+            '--c-raised': '31 38 60',
+            '--c-line': '48 58 86',
+            '--c-text': '238 241 250',
+            '--c-text-soft': '158 168 194',
+            '--c-text-faint': '108 118 145',
+            '--c-accent': '110 150 255',
+            '--c-accent-deep': '70 108 220',
+            '--c-accent-tint': '34 46 84',
             '--c-warm': '244 172 78',
             '--c-good': '52 200 152',
             '--c-alert': '240 108 96',
         },
         shader: {
-            base: rgb('#0B0E18'),
-            glowA: rgb('#2B49B8'),
-            glowB: rgb('#7A3FA8'),
-            reach: 1.15,
-            grain: 0.03,
+            ramp: [rgb('#05070F'), rgb('#101E4E'), rgb('#2A4DAE'), rgb('#7FA0F5')],
+            bubbleTint: rgb('#D8E6FF'),
+            flow: 0.05,
+            bubbles: 1,
+            grain: 0.028,
         },
     },
     {
         name: 'espresso',
         label: 'Еспресо',
         vars: {
-            '--c-base': '22 17 15',
-            '--c-surface': '34 27 24',
-            '--c-raised': '44 35 31',
-            '--c-line': '62 50 44',
-            '--c-text': '246 240 234',
-            '--c-text-soft': '176 163 152',
-            '--c-text-faint': '124 112 103',
-            '--c-accent': '232 156 62',
-            '--c-accent-deep': '198 122 38',
-            '--c-accent-tint': '62 45 28',
-            '--c-warm': '226 118 72',
-            '--c-good': '104 176 118',
-            '--c-alert': '224 96 78',
+            '--c-base': '18 13 11',
+            '--c-surface': '33 25 21',
+            '--c-raised': '45 34 29',
+            '--c-line': '66 51 43',
+            '--c-text': '247 241 234',
+            '--c-text-soft': '180 165 152',
+            '--c-text-faint': '128 114 104',
+            '--c-accent': '235 163 74',
+            '--c-accent-deep': '200 126 40',
+            '--c-accent-tint': '64 45 27',
+            '--c-warm': '228 122 74',
+            '--c-good': '110 180 122',
+            '--c-alert': '226 98 80',
         },
         shader: {
-            base: rgb('#150F0D'),
-            glowA: rgb('#7A3E12'),
-            glowB: rgb('#3A2418'),
-            reach: 1.05,
-            grain: 0.032,
+            ramp: [rgb('#0E0907'), rgb('#3A2011'), rgb('#8A4A16'), rgb('#E5A353')],
+            bubbleTint: rgb('#FFE3B8'),
+            flow: 0.045,
+            bubbles: 0.85,
+            grain: 0.03,
+        },
+    },
+    {
+        name: 'dawn',
+        label: 'Світанок',
+        vars: {
+            '--c-base': '245 239 230',
+            '--c-surface': '255 255 255',
+            '--c-raised': '255 255 255',
+            '--c-line': '224 216 204',
+            '--c-text': '26 24 33',
+            '--c-text-soft': '95 90 105',
+            '--c-text-faint': '148 143 158',
+            '--c-accent': '43 92 232',
+            '--c-accent-deep': '28 66 186',
+            '--c-accent-tint': '221 231 255',
+            '--c-warm': '226 140 44',
+            '--c-good': '30 160 120',
+            '--c-alert': '216 84 70',
+        },
+        shader: {
+            ramp: [rgb('#D2C6B4'), rgb('#EDE3D4'), rgb('#CFE0F6'), rgb('#FFFAF2')],
+            bubbleTint: rgb('#FFFFFF'),
+            flow: 0.04,
+            bubbles: 0.7,
+            grain: 0.024,
         },
     },
 ];
