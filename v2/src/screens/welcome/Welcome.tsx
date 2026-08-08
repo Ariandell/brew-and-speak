@@ -3,11 +3,16 @@ import { Card } from '../../ui/Card';
 import { Button } from '../../ui/Button';
 import { HeroMascot } from './HeroMascot';
 import { Backdrop } from './Backdrop';
+import type { Anchor } from '../../ui/cupLanding';
 
 interface Props {
     onStart: () => void;
     /** True while the planes are covering, so the mascot can leave with them. */
     leaving: boolean;
+    /** True for the whole of a screen change, in either direction. */
+    travelling: boolean;
+    /** Reports where the mascot sits, so the next screen can send it back. */
+    onAnchor: (anchor: Anchor) => void;
 }
 
 /**
@@ -25,7 +30,7 @@ interface Props {
  * mascot inside this screen's layer, and on the way out the mascot has to rise
  * above the planes. Order in the markup already puts it over the backdrop.
  */
-export const Welcome = ({ onStart, leaving }: Props) => (
+export const Welcome = ({ onStart, leaving, travelling, onAnchor }: Props) => (
     <Screen>
         <Backdrop />
 
@@ -45,7 +50,7 @@ export const Welcome = ({ onStart, leaving }: Props) => (
                     <div className="contact-shadow pointer-events-none absolute bottom-7 h-9 w-[200px]" />
                 </Card>
 
-                <HeroMascot leaving={leaving} />
+                <HeroMascot leaving={leaving} travelling={travelling} onAnchor={onAnchor} />
             </div>
 
             <h1

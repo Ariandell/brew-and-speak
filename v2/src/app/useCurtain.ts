@@ -27,6 +27,10 @@ const wantsStillness = () => window.matchMedia('(prefers-reduced-motion: reduce)
  */
 export const useCurtain = () => {
     const [phase, setPhase] = useState<CurtainPhase>('booting');
+    /** True for a whole screen change, both halves of it. Distinct from `phase`
+     *  because the opening sweep on first load shares a phase with the second
+     *  half of a move, and only a real move carries something across. */
+    const [travelling, setTravelling] = useState(false);
     const timers = useRef<number[]>([]);
 
     const clear = () => {
@@ -71,14 +75,18 @@ export const useCurtain = () => {
         }
 
         setPhase('covering');
+        setTravelling(true);
         timers.current.push(
             window.setTimeout(() => {
                 commit();
                 setPhase('returning');
             }, COVER_MS + STAGGER_MS),
-            window.setTimeout(() => setPhase('idle'), COVER_MS + RETURN_MS + STAGGER_MS * 2),
+            window.setTimeout(() => {
+                setPhase('idle');
+                setTravelling(false);
+            }, COVER_MS + RETURN_MS + STAGGER_MS * 2),
         );
     }, []);
 
-    return { phase, go };
+    return { phase, travelling, go };
 };

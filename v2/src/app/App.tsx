@@ -3,6 +3,7 @@ import { Welcome } from '../screens/welcome/Welcome';
 import { Home } from '../screens/home/Home';
 import { Curtain } from './Curtain';
 import { useCurtain } from './useCurtain';
+import type { Anchor } from '../ui/cupLanding';
 
 type ScreenName = 'welcome' | 'home';
 
@@ -25,21 +26,34 @@ const REST: Record<ScreenName, string> = {
  * after it - it reports the intent and this decides, so re-ordering the flow
  * touches one file.
  *
- * The page background lives here too. Screens paint no opaque backdrop of
+ * The cup's home position is held here too. The welcome screen measures where
+ * its mascot ended up and reports it; home needs that same point to send the
+ * cup back along the path it arrived by. Neither screen can ask the other
+ * directly - only one of them is mounted at a time.
+ *
+ * The page background lives here as well. Screens paint no opaque backdrop of
  * their own, or they would cover the planes sitting behind them.
  */
 export const App = () => {
     const [screen, setScreen] = useState<ScreenName>('welcome');
-    const { phase, go } = useCurtain();
+    const [cupOrigin, setCupOrigin] = useState<Anchor>();
+    const { phase, travelling, go } = useCurtain();
     const covering = phase === 'covering';
 
     return (
         <div className="relative mx-auto min-h-[100dvh] w-full max-w-[480px] overflow-hidden bg-paper">
             <Curtain phase={phase} rest={REST[screen]} />
             {screen === 'welcome' && (
-                <Welcome leaving={covering} onStart={() => go(() => setScreen('home'))} />
+                <Welcome
+                    leaving={covering}
+                    travelling={travelling}
+                    onAnchor={setCupOrigin}
+                    onStart={() => go(() => setScreen('home'))}
+                />
             )}
-            {screen === 'home' && <Home onBack={() => go(() => setScreen('welcome'))} />}
+            {screen === 'home' && (
+                <Home leaving={covering} cupOrigin={cupOrigin} onBack={() => go(() => setScreen('welcome'))} />
+            )}
         </div>
     );
 };

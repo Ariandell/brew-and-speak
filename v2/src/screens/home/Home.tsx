@@ -2,9 +2,15 @@ import { Screen } from '../../ui/Screen';
 import { Card } from '../../ui/Card';
 import { Button } from '../../ui/Button';
 import { Backdrop } from './Backdrop';
+import { LandedCup } from './LandedCup';
+import type { Anchor } from '../../ui/cupLanding';
 
 interface Props {
     onBack: () => void;
+    /** True while the screen is being covered. */
+    leaving: boolean;
+    /** Where the cup sits on the screen it came from, so it can go back there. */
+    cupOrigin?: Anchor;
 }
 
 /**
@@ -16,9 +22,10 @@ interface Props {
  * staggered against the plane: the top is uncovered first and can come in
  * straight away, the foot has to wait for the plane to arrive.
  */
-export const Home = ({ onBack }: Props) => (
+export const Home = ({ onBack, leaving, cupOrigin }: Props) => (
     <Screen>
         <Backdrop />
+        <LandedCup leaving={leaving} origin={cupOrigin} />
 
         <div className="relative z-50 flex flex-grow flex-col px-6 pb-10 pt-14">
             <div className="animate-rise" style={{ animationDelay: '120ms' }}>
