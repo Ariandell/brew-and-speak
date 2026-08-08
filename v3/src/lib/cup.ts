@@ -53,16 +53,17 @@ uniform float uMouthFlip; // +1 a smile, -1 the other thing
 varying vec3 vNormal;
 varying vec3 vLocal;
 
-/* Read off the model's own radius profile, then checked against a ruler drawn
-   on the mesh - the profile alone put the sleeve's top a tenth too low. */
-const float SLEEVE_BOTTOM = -0.575;
-const float SLEEVE_TOP = 0.305;
-const float LID_EDGE = 0.595;
+/* Read off the model's own silhouette, taken along a narrow strip down the
+   front so the arms stay out of it. A median over the whole slice buries the
+   sleeve's lip - it is a thin ring, and the wall behind it outvotes it. */
+const float SLEEVE_BOTTOM = -0.63;
+const float SLEEVE_TOP = 0.48;
+const float LID_EDGE = 0.67;
 
 /* Roughly where the sleeve's wall sits. Using one radius rather than the true
    one per point keeps the face the same size top to bottom, which a tapering
    cup would otherwise stretch. */
-const float SLEEVE_RADIUS = 0.62;
+const float SLEEVE_RADIUS = 0.60;
 
 /* Softness of every edge, in face units. Wide enough to hide the pixel grid,
    narrow enough that the eyes stay eyes. */
@@ -169,8 +170,12 @@ export interface FaceShape {
 }
 
 export const HAPPY: FaceShape = {
-    unit: 0.46,
-    centreY: 0.02,
+    /* Sized from the reference rather than by eye: there the face is 0.417 of
+       the sleeve's height across, and the sleeve here is 1.11 tall. */
+    unit: 0.351,
+    /* Also from the reference: the eye line sits 0.42 of the way down the
+       sleeve, not in the middle of it. */
+    centreY: 0.014,
     eyeRadius: [0.160, 0.165],
     eyeSeparation: 0.5,
     mouth: [0.465, 0.879, -0.035, 0.030],
