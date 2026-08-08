@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Backdrop } from '../ui/Backdrop';
+import { Aquarium } from '../ui/Aquarium';
 import { THEMES, applyTheme } from '../app/themes';
 import { ENTRIES } from './registry';
 
@@ -26,7 +26,7 @@ export const Workshop = () => {
 
     return (
         <div className="relative min-h-[100dvh]">
-            <Backdrop palette={theme.shader} onMeter={useCallback(setFps, [])} />
+            <Aquarium look={{ palette: theme.shader, cup: theme.cup }} onMeter={useCallback(setFps, [])} />
 
             <div className="relative flex min-h-[100dvh] flex-col">
                 <header className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 py-3 backdrop-blur-sm">

@@ -17,5 +17,5 @@ export interface Entry {
  * that is much easier to see when nothing else is on screen.
  */
 export const ENTRIES: Entry[] = [
-    { id: 'background', label: 'Фон', bleed: true, render: () => <BackgroundEntry /> },
+    { id: 'scene', label: 'Сцена', bleed: true, render: () => <BackgroundEntry /> },
 ];

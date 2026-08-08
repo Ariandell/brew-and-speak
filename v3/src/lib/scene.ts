@@ -23,6 +23,8 @@
  * WebViews, and nothing here needs it.
  */
 
+import { createCupPass, loadCup, type CupColours, type CupMesh } from './cup';
+
 const VERT = `
 attribute vec2 aPos;
 void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
@@ -183,8 +185,13 @@ export interface Palette {
     grain: number;
 }
 
-export interface Background {
-    setPalette(palette: Palette): void;
+export interface SceneLook {
+    palette: Palette;
+    cup: CupColours;
+}
+
+export interface Scene {
+    setLook(look: SceneLook): void;
     /** Frames per second over the last second, for judging by measurement. */
     fps(): number;
     destroy(): void;
@@ -215,15 +222,16 @@ const compile = (gl: WebGLRenderingContext, type: number, source: string) => {
 
 /**
  * Returns null when WebGL is unavailable, so the caller can leave its CSS
- * fallback in place. A background is decoration - it must never be the reason
- * a screen fails to render.
+ * fallback in place. The scene is decoration - it must never be the reason a
+ * screen fails to render.
  */
-export const createBackground = (
+export const createScene = (
     canvas: HTMLCanvasElement,
-    palette: Palette,
+    look: SceneLook,
     still: boolean,
-): Background | null => {
-    const gl = (canvas.getContext('webgl', { antialias: false, alpha: false, depth: false }) ??
+    meshUrl?: string,
+): Scene | null => {
+    const gl = (canvas.getContext('webgl', { antialias: false, alpha: false, depth: true }) ??
         canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
     if (!gl) return null;
 
@@ -264,7 +272,7 @@ export const createBackground = (
         grain: at('uGrain'),
     };
 
-    let current = palette;
+    let current = look;
     let raf = 0;
     let last = 0;
     let alive = true;
@@ -273,14 +281,14 @@ export const createBackground = (
     let measured = 0;
 
     const pushPalette = () => {
-        gl.uniform3fv(u.c0, current.ramp[0]);
-        gl.uniform3fv(u.c1, current.ramp[1]);
-        gl.uniform3fv(u.c2, current.ramp[2]);
-        gl.uniform3fv(u.c3, current.ramp[3]);
-        gl.uniform3fv(u.bubbleTint, current.bubbleTint);
-        gl.uniform1f(u.flow, current.flow);
-        gl.uniform1f(u.bubbles, current.bubbles);
-        gl.uniform1f(u.grain, current.grain);
+        gl.uniform3fv(u.c0, current.palette.ramp[0]);
+        gl.uniform3fv(u.c1, current.palette.ramp[1]);
+        gl.uniform3fv(u.c2, current.palette.ramp[2]);
+        gl.uniform3fv(u.c3, current.palette.ramp[3]);
+        gl.uniform3fv(u.bubbleTint, current.palette.bubbleTint);
+        gl.uniform1f(u.flow, current.palette.flow);
+        gl.uniform1f(u.bubbles, current.palette.bubbles);
+        gl.uniform1f(u.grain, current.palette.grain);
     };
 
     const resize = () => {
@@ -294,9 +302,31 @@ export const createBackground = (
         gl.uniform2f(u.res, w, h);
     };
 
+    const cupPass = createCupPass(gl, (type, source) => compile(gl, type, source));
+    let cupMesh: CupMesh | null = null;
+    if (meshUrl) {
+        // The water must not wait on it. If the model never arrives, or arrives
+        // broken, the scene is simply the water - which is a complete thing.
+        loadCup(gl, meshUrl).then(mesh => {
+            cupMesh = mesh;
+        });
+    }
+
     const draw = (time: number) => {
+        gl.useProgram(program);
         gl.uniform1f(u.time, time / 1000);
+        gl.uniform2f(u.res, canvas.width, canvas.height);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.enableVertexAttribArray(aPos);
+        gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+        if (cupPass && cupMesh) {
+            // The water wrote no depth, so the buffer has to start clean or the
+            // cup tests against whatever was left in it last frame.
+            gl.clear(gl.DEPTH_BUFFER_BIT);
+            cupPass.draw(cupMesh, time / 1000, canvas.width / canvas.height, current.cup);
+        }
     };
 
     const loop = (now: number) => {
@@ -344,8 +374,9 @@ export const createBackground = (
     else start();
 
     return {
-        setPalette(next) {
+        setLook(next) {
             current = next;
+            gl.useProgram(program);
             pushPalette();
             if (still) {
                 resize();

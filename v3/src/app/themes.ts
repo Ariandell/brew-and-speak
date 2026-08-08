@@ -1,4 +1,5 @@
-import type { Palette } from '../lib/background';
+import type { CupColours } from '../lib/cup';
+import type { Palette } from '../lib/scene';
 
 /**
  * A theme is one set of interface colours plus the palette the water is
@@ -16,6 +17,7 @@ export interface Theme {
     /** Written onto the root element as CSS variables. */
     vars: Record<string, string>;
     shader: Palette;
+    cup: CupColours;
 }
 
 const rgb = (hex: string): [number, number, number] => [
@@ -50,6 +52,12 @@ export const THEMES: Theme[] = [
             bubbles: 1,
             grain: 0.028,
         },
+        cup: {
+            shade: rgb('#16255E'),
+            light: rgb('#EAF1FF'),
+            rim: rgb('#8FB4FF'),
+            depthTint: 1.1,
+        },
     },
     {
         name: 'espresso',
@@ -76,6 +84,12 @@ export const THEMES: Theme[] = [
             bubbles: 0.85,
             grain: 0.03,
         },
+        cup: {
+            shade: rgb('#3A2011'),
+            light: rgb('#FFF3E2'),
+            rim: rgb('#F0B469'),
+            depthTint: 1,
+        },
     },
     {
         name: 'dawn',
@@ -101,6 +115,12 @@ export const THEMES: Theme[] = [
             flow: 0.04,
             bubbles: 0.7,
             grain: 0.024,
+        },
+        cup: {
+            shade: rgb('#B9AE9C'),
+            light: rgb('#FFFFFF'),
+            rim: rgb('#BFD4F5'),
+            depthTint: 0.7,
         },
     },
 ];
