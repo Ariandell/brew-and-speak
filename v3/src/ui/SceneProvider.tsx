@@ -15,7 +15,7 @@ export const useScene = () => useContext(SceneContext);
 
 interface Props {
     look: SceneLook;
-    onMeter?: (fps: number) => void;
+    onMeter?: (fps: number, quality: number) => void;
     children: ReactNode;
 }
 

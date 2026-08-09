@@ -4,7 +4,7 @@ import { createScene, type Scene, type SceneLook } from '../lib/scene';
 interface Props {
     look: SceneLook;
     /** Reports frame rate once a second, so the workshop can judge by measurement. */
-    onMeter?: (fps: number) => void;
+    onMeter?: (fps: number, quality: number) => void;
     /** Hands the scene out once it exists, or null when WebGL is missing. */
     onScene?: (scene: Scene | null) => void;
 }
@@ -50,7 +50,7 @@ export const Aquarium = ({ look, onMeter, onScene }: Props) => {
 
     useEffect(() => {
         if (!onMeter) return;
-        const id = window.setInterval(() => onMeter(scene.current?.fps() ?? 0), 1000);
+        const id = window.setInterval(() => onMeter(scene.current?.fps() ?? 0, scene.current?.quality() ?? 0), 1000);
         return () => clearInterval(id);
     }, [onMeter]);
 

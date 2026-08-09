@@ -17,7 +17,7 @@ import { ENTRIES } from './registry';
 export const Workshop = () => {
     const [themeIndex, setThemeIndex] = useState(0);
     const [entryId, setEntryId] = useState(ENTRIES[0].id);
-    const [fps, setFps] = useState(0);
+    const [meter, setMeter] = useState({ fps: 0, quality: 0 });
 
     const theme = THEMES[themeIndex];
     const entry = ENTRIES.find(e => e.id === entryId) ?? ENTRIES[0];
@@ -25,7 +25,10 @@ export const Workshop = () => {
     useEffect(() => applyTheme(theme), [theme]);
 
     return (
-        <SceneProvider look={{ palette: theme.shader, cup: theme.cup }} onMeter={useCallback(setFps, [])}>
+        <SceneProvider
+            look={{ palette: theme.shader, cup: theme.cup }}
+            onMeter={useCallback((fps: number, quality: number) => setMeter({ fps, quality }), [])}
+        >
             <div className="relative flex min-h-[100dvh] flex-col">
                 <header className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 py-3 backdrop-blur-sm">
                     <span className="mr-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-text-faint">
@@ -47,10 +50,13 @@ export const Workshop = () => {
                     ))}
 
                     <span className="ml-auto flex items-center gap-2">
-                        {/* Measured, not guessed: the shader is the one thing here
-                            that can quietly cost a phone its frame rate. */}
+                        {/* Measured, not guessed. The rung shows only once the
+                            scene has given something up, so seeing it at all is
+                            the signal that this device could not hold full
+                            quality. */}
                         <span className="font-mono text-[11px] tabular-nums text-text-faint">
-                            {fps} fps
+                            {meter.fps} fps
+                            {meter.quality > 0 ? ' · q' + meter.quality : ''}
                         </span>
                         {THEMES.map((option, index) => (
                             <button

@@ -243,18 +243,39 @@ export interface Scene {
     touch(x: number, y: number): void;
     /** Frames per second over the last second, for judging by measurement. */
     fps(): number;
+    /** Which rung of the quality ladder is in use. Zero is full. */
+    quality(): number;
     destroy(): void;
 }
 
-/**
- * Full resolution for the screen. Two is enough on any phone - beyond it the
- * pixels are smaller than the eye resolves and the cost is quadratic.
- */
-const MAX_DPR = 2;
-/** The water is drawn at this share of it, then stretched. */
-const WATER_SCALE = 0.55;
 /** The motion is a slow drift; sixty frames a second of it is wasted battery. */
 const FRAME_MS = 1000 / 30;
+
+/**
+ * What to give up, and in what order, when the frame rate will not hold.
+ *
+ * Measured rather than guessed: dropping the water's resolution by three
+ * quarters bought two frames a second, while turning off multisampling bought
+ * seven. Multisampling is not paid at the edges of the cup - it makes every
+ * pixel of the screen cost four samples, including the full-screen stretch
+ * that has no edges at all. So resolution is the lever, not the water.
+ *
+ * The bubbles stay at every rung. Turning them off was in the first version of
+ * this ladder, until the measurement said the whole water pass is not the cost
+ * - so removing them would have given up something visible in exchange for
+ * almost nothing.
+ *
+ * It only ever steps down. Climbing back up when the rate recovers makes the
+ * quality oscillate, and a picture that keeps changing sharpness is more
+ * noticeable than one that is simply softer.
+ */
+const QUALITY = [
+    { dpr: 2, water: 0.55 },
+    { dpr: 1.5, water: 0.5 },
+    { dpr: 1.15, water: 0.45 },
+];
+/** Below this for a whole second, and a rung comes off. */
+const FLOOR_FPS = 24;
 
 const compile = (gl: WebGLRenderingContext, type: number, source: string) => {
     const shader = gl.createShader(type)!;
@@ -378,9 +399,10 @@ export const createScene = (
     let height = 0;
     let waterWidth = 0;
     let waterHeight = 0;
+    let rung = 0;
 
     const resize = () => {
-        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        const dpr = Math.min(window.devicePixelRatio || 1, QUALITY[rung].dpr);
         const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
         const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
         if (width === w && height === h) return;
@@ -390,8 +412,8 @@ export const createScene = (
         canvas.width = w;
         canvas.height = h;
 
-        waterWidth = Math.max(1, Math.round(w * WATER_SCALE));
-        waterHeight = Math.max(1, Math.round(h * WATER_SCALE));
+        waterWidth = Math.max(1, Math.round(w * QUALITY[rung].water));
+        waterHeight = Math.max(1, Math.round(h * QUALITY[rung].water));
         gl.bindTexture(gl.TEXTURE_2D, waterTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, waterWidth, waterHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     };
@@ -467,6 +489,13 @@ export const createScene = (
             measured = Math.round((frames * 1000) / (now - windowStart));
             frames = 0;
             windowStart = now;
+
+            if (measured < FLOOR_FPS && rung < QUALITY.length - 1) {
+                rung++;
+                // Force the next resize to rebuild at the new scale.
+                width = 0;
+                height = 0;
+            }
         }
     };
 
@@ -517,6 +546,7 @@ export const createScene = (
             wanted.lookPitch = (y - 0.5) * 0.45;
         },
         fps: () => measured,
+        quality: () => rung,
         destroy() {
             alive = false;
             stop();
