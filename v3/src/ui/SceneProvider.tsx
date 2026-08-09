@@ -53,9 +53,9 @@ export const SceneProvider = ({ look, onMeter, children }: Props) => {
            column, so judging it at window width judges a layout that will never
            exist - and it quadruples the pixels the scene has to draw while
            doing it. */
-        <div className="flex min-h-[100dvh] justify-center bg-[#101014]">
+        <div className="flex min-h-0 flex-1 justify-center bg-[#101014]">
             <div
-                className="relative w-full max-w-[430px] overflow-hidden"
+                className="relative h-full w-full max-w-[430px] overflow-hidden"
                 onPointerDown={onPointerDown}
             >
                 <Aquarium look={look} onMeter={onMeter} onScene={value => (scene.current = value)} />

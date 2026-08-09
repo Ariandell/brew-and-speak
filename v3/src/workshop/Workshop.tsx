@@ -34,7 +34,7 @@ export const Workshop = () => {
         /* The bar sits above the phone, not on it. Tooling drawn over the thing
            being judged changes the thing being judged - every entry would be
            looked at with a strip taken off the top. */
-        <div className="flex min-h-[100dvh] flex-col bg-[#101014]">
+        <div className="flex h-[100dvh] flex-col bg-[#101014]">
             <header className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
                 <span className="mr-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/40">
                     Майстерня
@@ -89,7 +89,7 @@ export const Workshop = () => {
                 look={{ palette: theme.shader, cup: theme.cup }}
                 onMeter={useCallback(setMeter, [])}
             >
-                <div className={entry.bleed ? 'min-h-[100dvh]' : 'min-h-[100dvh] p-6'}>
+                <div className={entry.bleed ? 'h-full' : 'h-full p-6'}>
                     {entry.render()}
                 </div>
             </SceneProvider>

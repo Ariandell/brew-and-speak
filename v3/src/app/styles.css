@@ -57,6 +57,16 @@
 
 .surface { animation: surface 620ms var(--ease-out) both; }
 
+/* A slow vertical crawl of small type. Its job is not to be read - it is to
+   keep a thin line of the screen permanently alive, so the composition never
+   settles into a still image. */
+@keyframes crawl {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+
+.crawl { animation: crawl 42s linear infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
