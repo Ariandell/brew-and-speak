@@ -8,6 +8,10 @@ import type { Palette } from '../lib/scene';
  * stands on it, so letting either drift from the interface colours is how a
  * background stops belonging to the app.
  *
+ * There is one theme. The shape is kept because it is what holds colour out of
+ * the components - not because a second theme is planned. Adding one later is
+ * an entry in this list and nothing else.
+ *
  * Interface colours are raw `r g b` triplets for Tailwind's alpha modifiers.
  * Shader colours are 0..1 floats because that is what GLSL wants, and
  * converting on every frame would be waste.
@@ -62,86 +66,6 @@ export const THEMES: Theme[] = [
             shade: rgb('#9AA4BC'),
             rim: rgb('#C6D6F2'),
             depthTint: 0.55,
-        },
-    },
-    {
-        /* Dawn's structure in a different family: the same lightness, the same
-           flow, the same grain. Only the hue moves - which is the whole reason
-           the numbers live apart from the colours. */
-        name: 'mint',
-        label: 'Мінт',
-        vars: {
-            '--c-base': '238 246 241',
-            '--c-surface': '255 255 255',
-            '--c-raised': '255 255 255',
-            '--c-line': '211 227 218',
-            '--c-text': '23 37 31',
-            '--c-text-soft': '92 111 102',
-            '--c-text-faint': '147 166 156',
-            /* White on this reads at about 4.9 to 1, past the 4.5 needed at any
-               size. A lighter, prettier mint does not get there, and an accent
-               that cannot carry white text is not an accent. */
-            '--c-accent': '12 132 101',
-            '--c-accent-deep': '7 107 80',
-            '--c-accent-tint': '213 240 228',
-            '--c-warm': '226 160 60',
-            '--c-good': '26 161 121',
-            '--c-alert': '224 87 74',
-        },
-        shader: {
-            ramp: [rgb('#B9CFC2'), rgb('#D9EADF'), rgb('#C6E6E6'), rgb('#FAFFFC')],
-            bubbleTint: rgb('#FFFFFF'),
-            flow: 0.04,
-            bubbles: 0.7,
-            grain: 0.024,
-        },
-        cup: {
-            lid: rgb('#E5E8E6'),
-            body: rgb('#F1F4F2'),
-            /* Cooler at the top, greener at the bottom - the same kind of shift
-               the reference sleeve has, carried into this family. */
-            sleeveTop: rgb('#3FBF9C'),
-            sleeveBottom: rgb('#1E9E78'),
-            faceInk: rgb('#10382C'),
-            shade: rgb('#94A8A0'),
-            rim: rgb('#BFE6DA'),
-            depthTint: 0.55,
-        },
-    },
-    {
-        name: 'ink',
-        label: 'Глибина',
-        vars: {
-            '--c-base': '9 12 24',
-            '--c-surface': '22 27 44',
-            '--c-raised': '31 38 60',
-            '--c-line': '48 58 86',
-            '--c-text': '238 241 250',
-            '--c-text-soft': '158 168 194',
-            '--c-text-faint': '108 118 145',
-            '--c-accent': '110 150 255',
-            '--c-accent-deep': '70 108 220',
-            '--c-accent-tint': '34 46 84',
-            '--c-warm': '244 172 78',
-            '--c-good': '52 200 152',
-            '--c-alert': '240 108 96',
-        },
-        shader: {
-            ramp: [rgb('#05070F'), rgb('#101E4E'), rgb('#2A4DAE'), rgb('#7FA0F5')],
-            bubbleTint: rgb('#D8E6FF'),
-            flow: 0.05,
-            bubbles: 1,
-            grain: 0.028,
-        },
-        cup: {
-            lid: rgb('#E9E9EC'),
-            body: rgb('#F1F2F6'),
-            sleeveTop: rgb('#5570E4'),
-            sleeveBottom: rgb('#3C46C6'),
-            faceInk: rgb('#12193C'),
-            shade: rgb('#16255E'),
-            rim: rgb('#8FB4FF'),
-            depthTint: 1.1,
         },
     },
 ];
