@@ -431,10 +431,6 @@ export const createScene = (
 
     const sceneDepth = gl.createRenderbuffer();
     const sceneTarget = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTexture, 0);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, sceneDepth);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     /* Which GPU is really doing this. Chrome falls back to a software
        rasteriser when acceleration is off or the card is blocklisted, and that
@@ -467,6 +463,10 @@ export const createScene = (
     let raf = 0;
     let due = 0;
     let slow = 0;
+    /* The first seconds hold shader compilation, the model arriving and its
+       buffers being uploaded. Judging the machine on those is judging the
+       loading screen, and the cost of being wrong is permanent. */
+    let warmup = 3;
     let alive = true;
     let frames = 0;
     let windowStart = 0;
@@ -505,19 +505,34 @@ export const createScene = (
         gl.bindTexture(gl.TEXTURE_2D, waterTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, waterWidth, waterHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
-        /* Supersample only where the screen is coarse - a dense display already
-           has more pixels than the eye resolves - and never past a fixed budget
-           of pixels, so a large window cannot quietly cost several times what a
-           phone does. */
-        const wanted = dpr >= 1.75 ? 1 : 1.4;
+        /* Either exactly double or not at all. A non-integer reduction lands
+           each output pixel between source pixels and the bilinear filter
+           smears it; at exactly two, every output pixel is the average of four,
+           which is a proper box filter and stays sharp.
+           Only on coarse displays, and only inside a pixel budget, so a large
+           window cannot quietly cost several times what a phone does. */
         const budget = 2_600_000;
-        const over = Math.min(wanted, Math.sqrt(budget / (w * h)));
+        const over = dpr < 1.75 && w * h * 4 <= budget ? 2 : 1;
         sceneWidth = Math.max(1, Math.round(w * over));
         sceneHeight = Math.max(1, Math.round(h * over));
         gl.bindTexture(gl.TEXTURE_2D, sceneTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, sceneWidth, sceneHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
         gl.bindRenderbuffer(gl.RENDERBUFFER, sceneDepth);
         gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, sceneWidth, sceneHeight);
+
+        /* Storage first, attachment second, every time the size changes.
+           Attaching a renderbuffer that has no memory yet leaves the framebuffer
+           incomplete, and some drivers never recover from that - the depth test
+           then silently does nothing and the far side of the cup draws over the
+           near side. */
+        gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTexture, 0);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, sceneDepth);
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+        if (status !== gl.FRAMEBUFFER_COMPLETE) {
+            console.error('Кадровий буфер сцени неповний:', status);
+        }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     };
 
     const drawFullscreen = (attribute: number) => {
@@ -621,7 +636,8 @@ export const createScene = (
             // Two bad seconds in a row, not one. A single slow second happens
             // while assets are still arriving, and giving up quality for that
             // is a permanent price for a temporary problem.
-            slow = measured < QUALITY[rung].fps * FLOOR ? slow + 1 : 0;
+            if (warmup > 0) warmup--;
+            slow = warmup === 0 && measured < QUALITY[rung].fps * FLOOR ? slow + 1 : 0;
             if (!flags.noladder && slow >= 2 && rung < QUALITY.length - 1) {
                 rung++;
                 slow = 0;
