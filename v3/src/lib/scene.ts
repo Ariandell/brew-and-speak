@@ -248,7 +248,17 @@ export interface Scene {
     destroy(): void;
 }
 
-/** The motion is a slow drift; sixty frames a second of it is wasted battery. */
+/**
+ * The motion is a slow drift; sixty frames a second of it is wasted battery.
+ *
+ * The gate is a deadline that advances, not a comparison against the last
+ * frame drawn. Comparing is the obvious way and it is wrong: on a 60Hz screen
+ * two ticks are 33.34ms apart and the target is 33.33, so the pair only just
+ * clears - and the moment a timestamp lands a hair early the frame is skipped
+ * and the next chance is the third tick. Every third tick of 60Hz is 20 frames
+ * a second. Measured at exactly 20.3 in simulation, which is what sent the
+ * quality ladder down a rung on hardware that was never struggling.
+ */
 const FRAME_MS = 1000 / 30;
 
 /**
@@ -390,7 +400,8 @@ export const createScene = (
     let ripple: [number, number, number] = [0, 0, -1];
 
     let raf = 0;
-    let last = 0;
+    let due = 0;
+    let slow = 0;
     let alive = true;
     let frames = 0;
     let windowStart = 0;
@@ -479,8 +490,13 @@ export const createScene = (
     const loop = (now: number) => {
         if (!alive) return;
         raf = requestAnimationFrame(loop);
-        if (now - last < FRAME_MS) return;
-        last = now;
+        if (now < due) return;
+
+        // Advance the deadline rather than resetting it, so the average holds
+        // at the target. If it has fallen far behind - a hidden tab, a stall -
+        // start again from now instead of drawing a burst to catch up.
+        due = (now - due > FRAME_MS ? now : due) + FRAME_MS;
+
         resize();
         draw(now);
 
@@ -490,8 +506,13 @@ export const createScene = (
             frames = 0;
             windowStart = now;
 
-            if (measured < FLOOR_FPS && rung < QUALITY.length - 1) {
+            // Two bad seconds in a row, not one. A single slow second happens
+            // while assets are still arriving, and giving up quality for that
+            // is a permanent price for a temporary problem.
+            slow = measured < FLOOR_FPS ? slow + 1 : 0;
+            if (slow >= 2 && rung < QUALITY.length - 1) {
                 rung++;
+                slow = 0;
                 // Force the next resize to rebuild at the new scale.
                 width = 0;
                 height = 0;
