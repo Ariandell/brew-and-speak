@@ -241,6 +241,8 @@ export interface Scene {
     setPose(pose: Partial<CupPose>): void;
     /** A touch, in fractions of the canvas, origin at its top left. */
     touch(x: number, y: number): void;
+    /** Turn the cup's head without disturbing the water. */
+    look(x: number, y: number): void;
     /** Frames per second over the last second, for judging by measurement. */
     fps(): number;
     /** Which rung of the quality ladder is in use. Zero is full. */
@@ -692,6 +694,9 @@ export const createScene = (
             // The shader works with the origin at the bottom left, in units
             // where the height is one and the width is the aspect.
             ripple = [x * aspect, 1 - y, performance.now() / 1000];
+            this.look(x, y);
+        },
+        look(x, y) {
             wanted.lookYaw = (x - 0.5) * 1.1;
             wanted.lookPitch = (y - 0.5) * 0.45;
         },

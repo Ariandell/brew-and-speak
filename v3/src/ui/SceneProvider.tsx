@@ -6,6 +6,8 @@ import type { Scene, SceneLook } from '../lib/scene';
 interface Handle {
     /** Ask the cup to be somewhere. It swims there; it does not cut. */
     setPose(pose: Partial<CupPose>): void;
+    /** Turn the cup's head toward something on screen. */
+    lookAt(element: HTMLElement | null): void;
 }
 
 const SceneContext = createContext<Handle | null>(null);
@@ -32,20 +34,47 @@ export type { Reading };
 
 export const SceneProvider = ({ look, onMeter, children }: Props) => {
     const scene = useRef<Scene | null>(null);
+    const frame = useRef<HTMLDivElement>(null);
 
     const handle = useMemo<Handle>(
         () => ({
             setPose: pose => scene.current?.setPose(pose),
+            lookAt: element => {
+                const box = frame.current?.getBoundingClientRect();
+                const target = element?.getBoundingClientRect();
+                if (!box || !target) return;
+                scene.current?.look(
+                    (target.left + target.width / 2 - box.left) / box.width,
+                    (target.top + target.height / 2 - box.top) / box.height,
+                );
+            },
         }),
         [],
     );
 
-    const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const at = (event: React.PointerEvent<HTMLDivElement>) => {
         const box = event.currentTarget.getBoundingClientRect();
-        scene.current?.touch(
+        return [
             (event.clientX - box.left) / box.width,
             (event.clientY - box.top) / box.height,
-        );
+        ] as const;
+    };
+
+    const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        const [x, y] = at(event);
+        scene.current?.touch(x, y);
+    };
+
+    /* Following the finger while it is down, rather than snapping on a tap.
+       On a phone there is no cursor to follow and no hover to react to, and a
+       tap on empty space is a gesture nobody thinks to make - but dragging is
+       the one thing everyone does without being told, and something that
+       tracks continuously reads as alive in a way a discrete jump never does.
+       On a desktop the same handler fires without a button held, which is the
+       cursor-following behaviour for free. */
+    const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+        const [x, y] = at(event);
+        scene.current?.look(x, y);
     };
 
     return (
@@ -55,8 +84,10 @@ export const SceneProvider = ({ look, onMeter, children }: Props) => {
            doing it. */
         <div className="flex min-h-0 flex-1 justify-center bg-[#101014]">
             <div
+                ref={frame}
                 className="relative h-full w-full max-w-[430px] overflow-hidden"
                 onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
             >
                 <Aquarium look={look} onMeter={onMeter} onScene={value => (scene.current = value)} />
                 <SceneContext.Provider value={handle}>{children}</SceneContext.Provider>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useScene } from '../../ui/SceneProvider';
 
 /** Small type that never stops moving, so the screen is never a still image. */
@@ -6,6 +6,10 @@ const CRAWL =
     'ENG · UA — РІВНІ A1 A2 B1 B2 — ЩОДЕННА ПРАКТИКА — ФЛЕШКАРТКИ — ЖИВА ВИКЛАДАЧКА — ';
 
 const LEVELS = ['A1', 'A2', 'B1', 'B2'];
+const WEEKDAYS = ['НД', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
+
+/** How often the cup remembers there is something to press. */
+const GLANCE_MS = 7000;
 
 interface Props {
     onStart: () => void;
@@ -36,12 +40,31 @@ interface Props {
  */
 export const Welcome = ({ onStart }: Props) => {
     const scene = useScene();
+    const action = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         // Up and slightly off centre, so the wordmark owns the lower left and
         // the letters cross the cup's base rather than clearing it.
         scene?.setPose({ x: 0.15, y: 0.07, scale: 0.74 });
     }, [scene]);
+
+    /* Every so often the cup glances at the one thing there is to do. Reacting
+       to a touch is only half of being alive - the other half is having
+       something of its own to look at, and pointing at the action is the one
+       glance that is also useful. */
+    useEffect(() => {
+        if (!scene) return;
+        const id = window.setInterval(() => scene.lookAt(action.current), GLANCE_MS);
+        return () => clearInterval(id);
+    }, [scene]);
+
+    const now = new Date();
+    const stamp =
+        WEEKDAYS[now.getDay()] +
+        ' · ' +
+        String(now.getDate()).padStart(2, '0') +
+        '.' +
+        String(now.getMonth() + 1).padStart(2, '0');
 
     return (
         <div className="relative h-full overflow-hidden">
@@ -80,6 +103,23 @@ export const Welcome = ({ onStart }: Props) => {
             >
                 EN
             </span>
+
+            {/* A counterweight at the top. The space between it and the
+                wordmark was empty before; bounded by a line at each end it
+                becomes room the composition is using rather than room it
+                forgot about. The date is not filler - the product is twenty
+                minutes a day, so which day it is is the whole premise. */}
+            <div className="surface absolute inset-x-0 top-0 px-6 pt-7" style={{ animationDelay: '140ms' }}>
+                <div className="flex items-baseline justify-between">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-faint">
+                        Щоденна практика
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-text-faint">
+                        {stamp}
+                    </span>
+                </div>
+                <span className="mt-3 block h-px bg-text/15" />
+            </div>
 
             <div className="absolute inset-x-0 bottom-0 px-6 pb-9">
                 <div
@@ -131,6 +171,7 @@ export const Welcome = ({ onStart }: Props) => {
                     decision was made about it - this one has a leading mark, a
                     label and a direction, and reads as a control. */}
                 <button
+                    ref={action}
                     onClick={onStart}
                     className="surface mt-7 flex h-[62px] w-full items-center gap-4 rounded-[14px] bg-accent pl-5 pr-4 text-left transition-transform duration-quick ease-out active:scale-[0.985]"
                     style={{ animationDelay: '520ms' }}
