@@ -1,4 +1,4 @@
-import { createCupPass, HAPPY, loadCup, type CupColours, type CupMesh } from './cup';
+import { createCupPass, HAPPY, loadCup, RESTING, type CupColours, type CupMesh, type CupPose } from './cup';
 
 /**
  * The space the app lives in: water, bubbles, and the cup floating in it.
@@ -54,6 +54,7 @@ uniform vec3  uC3;
 uniform vec3  uBubbleTint;
 uniform float uFlow;
 uniform float uBubbles;
+uniform vec3  uRipple;   // where it started, and when
 
 /* No sin() in the hash. On mobile GPUs the transcendental is the expensive
    part, and this is called around fifty times per pixel. */
@@ -148,6 +149,20 @@ void main() {
 
     float t = uTime * uFlow;
 
+    /* A ring spreading from where the screen was touched. It does two things,
+       and the first matters more: it *displaces* where the water is sampled,
+       so the pattern itself bends, rather than a bright circle being drawn on
+       top of an undisturbed surface. */
+    float ripple = 0.0;
+    float age = uTime - uRipple.z;
+    if (uRipple.z > 0.0 && age > 0.0 && age < 2.4) {
+        vec2 away = p - uRipple.xy;
+        float reach = length(away);
+        float band = exp(-abs(reach - age * 0.52) * 11.0);
+        ripple = band * (1.0 - age / 2.4);
+        p += normalize(away + vec2(0.0001)) * ripple * 0.07;
+    }
+
     vec2 q = vec2(
         fbmCoarse(p * 1.6 + vec2(0.0, t * 0.35)),
         fbmCoarse(p * 1.6 + vec2(5.2, 1.3) - vec2(t * 0.25, 0.0))
@@ -167,6 +182,8 @@ void main() {
 
     col = mix(col, uBubbleTint, clamp(far * 0.14 + near * 0.28, 0.0, 1.0) * uBubbles);
     col += (glintFar * 0.06 + glintNear * 0.16) * uBubbles;
+
+    col += uBubbleTint * ripple * 0.13;
 
     float vig = 1.0 - smoothstep(0.35, 1.15, length(uv - 0.5) * 1.25);
     col *= mix(0.80, 1.0, vig);
@@ -220,6 +237,10 @@ export interface SceneLook {
 
 export interface Scene {
     setLook(look: SceneLook): void;
+    /** Where the cup should be. It swims there rather than jumping. */
+    setPose(pose: Partial<CupPose>): void;
+    /** A touch, in fractions of the canvas, origin at its top left. */
+    touch(x: number, y: number): void;
     /** Frames per second over the last second, for judging by measurement. */
     fps(): number;
     destroy(): void;
@@ -305,6 +326,7 @@ export const createScene = (
         bubbleTint: gl.getUniformLocation(waterProgram, 'uBubbleTint'),
         flow: gl.getUniformLocation(waterProgram, 'uFlow'),
         bubbles: gl.getUniformLocation(waterProgram, 'uBubbles'),
+        ripple: gl.getUniformLocation(waterProgram, 'uRipple'),
     };
     const upscaleU = {
         pos: gl.getAttribLocation(upscaleProgram, 'aPos'),
@@ -338,6 +360,14 @@ export const createScene = (
     }
 
     let current = look;
+
+    /* Everything the cup does is a target and a damped value chasing it. That
+       is what makes it read as swimming: it never arrives on a schedule, it
+       just keeps closing the distance. */
+    const wanted: CupPose = { ...RESTING };
+    const actual: CupPose = { ...RESTING };
+    let ripple: [number, number, number] = [0, 0, -1];
+
     let raf = 0;
     let last = 0;
     let alive = true;
@@ -388,6 +418,7 @@ export const createScene = (
         gl.uniform3fv(waterU.bubbleTint, current.palette.bubbleTint);
         gl.uniform1f(waterU.flow, current.palette.flow);
         gl.uniform1f(waterU.bubbles, current.palette.bubbles);
+        gl.uniform3fv(waterU.ripple, ripple);
         drawFullscreen(waterU.pos);
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -401,10 +432,25 @@ export const createScene = (
         drawFullscreen(upscaleU.pos);
 
         if (cupPass && cupMesh) {
+            /* Chase the target. A fixed fraction per frame rather than a
+               duration: interrupting it mid-way needs no special case, which a
+               timed animation always does. */
+            const follow = (from: number, to: number, rate: number) => from + (to - from) * rate;
+            actual.x = follow(actual.x, wanted.x, 0.10);
+            actual.y = follow(actual.y, wanted.y, 0.10);
+            actual.scale = follow(actual.scale, wanted.scale, 0.10);
+            actual.lookYaw = follow(actual.lookYaw, wanted.lookYaw, 0.12);
+            actual.lookPitch = follow(actual.lookPitch, wanted.lookPitch, 0.12);
+
+            /* Attention fades. Without this the cup stares at the last thing
+               touched forever, which stops reading as noticing. */
+            wanted.lookYaw *= 0.986;
+            wanted.lookPitch *= 0.986;
+
             // The water wrote no depth, so the buffer has to start clean or the
             // cup tests against whatever was left in it last frame.
             gl.clear(gl.DEPTH_BUFFER_BIT);
-            cupPass.draw(cupMesh, HAPPY, seconds, width / height, current.cup);
+            cupPass.draw(cupMesh, HAPPY, seconds, width / height, current.cup, actual);
         }
     };
 
@@ -458,6 +504,17 @@ export const createScene = (
                 resize();
                 draw(0);
             }
+        },
+        setPose(pose) {
+            Object.assign(wanted, pose);
+        },
+        touch(x, y) {
+            const aspect = width / Math.max(height, 1);
+            // The shader works with the origin at the bottom left, in units
+            // where the height is one and the width is the aspect.
+            ripple = [x * aspect, 1 - y, performance.now() / 1000];
+            wanted.lookYaw = (x - 0.5) * 1.1;
+            wanted.lookPitch = (y - 0.5) * 0.45;
         },
         fps: () => measured,
         destroy() {

@@ -47,6 +47,16 @@
   }
 }
 
+/* One vector for the whole app: things surface from below and sink to leave.
+   Nothing fades in place - a fade has no direction, and a direction is what
+   makes a set of separate animations read as one world. */
+@keyframes surface {
+  from { opacity: 0; transform: translateY(26px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.surface { animation: surface 620ms var(--ease-out) both; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

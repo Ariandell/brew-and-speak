@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { BackgroundEntry } from './entries/BackgroundEntry';
+import { WelcomeEntry } from './entries/WelcomeEntry';
 
 export interface Entry {
     id: string;
@@ -17,5 +18,6 @@ export interface Entry {
  * that is much easier to see when nothing else is on screen.
  */
 export const ENTRIES: Entry[] = [
+    { id: 'welcome', label: 'Вступ', bleed: true, render: () => <WelcomeEntry /> },
     { id: 'scene', label: 'Сцена', bleed: true, render: () => <BackgroundEntry /> },
 ];

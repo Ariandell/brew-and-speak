@@ -5,6 +5,8 @@ interface Props {
     look: SceneLook;
     /** Reports frame rate once a second, so the workshop can judge by measurement. */
     onMeter?: (fps: number) => void;
+    /** Hands the scene out once it exists, or null when WebGL is missing. */
+    onScene?: (scene: Scene | null) => void;
 }
 
 const MESH_URL = '/models/cup.msh';
@@ -20,7 +22,7 @@ const MESH_URL = '/models/cup.msh';
  * texture is the point; the drift is not, and drifting light is exactly the
  * kind of thing that setting exists to switch off.
  */
-export const Aquarium = ({ look, onMeter }: Props) => {
+export const Aquarium = ({ look, onMeter, onScene }: Props) => {
     const ref = useRef<HTMLCanvasElement>(null);
     const scene = useRef<Scene | null>(null);
 
@@ -30,7 +32,9 @@ export const Aquarium = ({ look, onMeter }: Props) => {
 
         const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         scene.current = createScene(canvas, look, still, MESH_URL);
+        onScene?.(scene.current);
         return () => {
+            onScene?.(null);
             scene.current?.destroy();
             scene.current = null;
         };

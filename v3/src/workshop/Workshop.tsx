@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Aquarium } from '../ui/Aquarium';
+import { SceneProvider } from '../ui/SceneProvider';
 import { THEMES, applyTheme } from '../app/themes';
 import { ENTRIES } from './registry';
 
@@ -25,9 +25,7 @@ export const Workshop = () => {
     useEffect(() => applyTheme(theme), [theme]);
 
     return (
-        <div className="relative min-h-[100dvh]">
-            <Aquarium look={{ palette: theme.shader, cup: theme.cup }} onMeter={useCallback(setFps, [])} />
-
+        <SceneProvider look={{ palette: theme.shader, cup: theme.cup }} onMeter={useCallback(setFps, [])}>
             <div className="relative flex min-h-[100dvh] flex-col">
                 <header className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 py-3 backdrop-blur-sm">
                     <span className="mr-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-text-faint">
@@ -72,6 +70,6 @@ export const Workshop = () => {
 
                 <main className={entry.bleed ? 'flex-grow' : 'flex-grow p-6'}>{entry.render()}</main>
             </div>
-        </div>
+        </SceneProvider>
     );
 };

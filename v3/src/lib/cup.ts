@@ -169,6 +169,24 @@ export interface FaceShape {
     mouthFlip: number;
 }
 
+/**
+ * Where the cup is and where it is looking.
+ *
+ * Position is in screen units - the middle is zero, the top edge is one - so a
+ * screen says where it wants the cup without knowing anything about the lens.
+ */
+export interface CupPose {
+    x: number;
+    y: number;
+    /** Multiplies the base size. */
+    scale: number;
+    /** Added to the idle drift, so the cup turns without stopping breathing. */
+    lookYaw: number;
+    lookPitch: number;
+}
+
+export const RESTING: CupPose = { x: 0, y: 0, scale: 1, lookYaw: 0, lookPitch: 0 };
+
 export const HAPPY: FaceShape = {
     /* Sized from the reference rather than by eye: there the face is 0.417 of
        the sleeve's height across, and the sleeve here is 1.11 tall. */
@@ -253,7 +271,14 @@ export const loadCup = async (gl: WebGLRenderingContext, url: string): Promise<C
 };
 
 export interface CupPass {
-    draw(mesh: CupMesh, face: FaceShape, time: number, aspect: number, colours: CupColours): void;
+    draw(
+        mesh: CupMesh,
+        face: FaceShape,
+        time: number,
+        aspect: number,
+        colours: CupColours,
+        pose: CupPose,
+    ): void;
 }
 
 export const createCupPass = (
@@ -306,7 +331,7 @@ export const createCupPass = (
     const scale = FILL_HEIGHT * visibleHalfHeight;
 
     return {
-        draw(mesh, face, time, aspect, colours) {
+        draw(mesh, face, time, aspect, colours, pose) {
             gl.useProgram(program);
             gl.enable(gl.DEPTH_TEST);
             gl.enable(gl.CULL_FACE);
@@ -329,7 +354,21 @@ export const createCupPass = (
             const yaw = Math.sin(time * 0.21) * 0.30;
             const pitch = Math.sin(time * 0.33) * 0.07;
 
-            gl.uniformMatrix4fv(u.model, false, compose(0, bob * scale, 0, yaw, pitch, scale));
+            /* Screen units into world units: the visible half-height at the
+               cup's distance is one, and width follows the aspect. */
+            const size = scale * pose.scale;
+            gl.uniformMatrix4fv(
+                u.model,
+                false,
+                compose(
+                    pose.x * visibleHalfHeight * aspect,
+                    pose.y * visibleHalfHeight + bob * size,
+                    0,
+                    yaw + pose.lookYaw,
+                    pitch + pose.lookPitch,
+                    size,
+                ),
+            );
             gl.uniform3fv(u.lid, colours.lid);
             gl.uniform3fv(u.body, colours.body);
             gl.uniform3fv(u.sleeveTop, colours.sleeveTop);
