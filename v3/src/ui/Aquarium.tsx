@@ -72,7 +72,7 @@ export const Aquarium = ({ look, onMeter, onScene }: Props) => {
         <canvas
             ref={ref}
             aria-hidden
-            className="pointer-events-none fixed inset-0 h-full w-full bg-base"
+            className="pointer-events-none absolute inset-0 h-full w-full bg-base"
         />
     );
 };

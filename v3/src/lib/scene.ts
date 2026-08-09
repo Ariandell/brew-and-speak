@@ -314,8 +314,14 @@ const QUALITY = [
     { fps: 30, dpr: 1.5, water: 0.5 },
     { fps: 30, dpr: 1.15, water: 0.45 },
 ];
-/** A rung comes off below this share of what the rung is asking for. */
-const FLOOR = 0.8;
+/**
+ * A rung comes off below this share of what the rung is asking for.
+ *
+ * Deliberately far below. At four fifths, a machine holding a steady fifty-five
+ * out of sixty would give up and settle for thirty - trading five frames for
+ * twenty-five. Only a rate that is clearly not working should cost anything.
+ */
+const FLOOR = 0.6;
 
 const compile = (gl: WebGLRenderingContext, type: number, source: string) => {
     const shader = gl.createShader(type)!;
@@ -499,10 +505,13 @@ export const createScene = (
         gl.bindTexture(gl.TEXTURE_2D, waterTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, waterWidth, waterHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
 
-        /* Supersample only where the screen is coarse. A dense display already
-           has more pixels than the eye resolves, so drawing even more of them
-           buys nothing and costs the square of it. */
-        const over = dpr >= 1.75 ? 1 : 1.5;
+        /* Supersample only where the screen is coarse - a dense display already
+           has more pixels than the eye resolves - and never past a fixed budget
+           of pixels, so a large window cannot quietly cost several times what a
+           phone does. */
+        const wanted = dpr >= 1.75 ? 1 : 1.4;
+        const budget = 2_600_000;
+        const over = Math.min(wanted, Math.sqrt(budget / (w * h)));
         sceneWidth = Math.max(1, Math.round(w * over));
         sceneHeight = Math.max(1, Math.round(h * over));
         gl.bindTexture(gl.TEXTURE_2D, sceneTexture);

@@ -49,9 +49,18 @@ export const SceneProvider = ({ look, onMeter, children }: Props) => {
     };
 
     return (
-        <div className="relative min-h-[100dvh]" onPointerDown={onPointerDown}>
-            <Aquarium look={look} onMeter={onMeter} onScene={value => (scene.current = value)} />
-            <SceneContext.Provider value={handle}>{children}</SceneContext.Provider>
+        /* A phone, even on a desktop. The app only ever runs inside Telegram's
+           column, so judging it at window width judges a layout that will never
+           exist - and it quadruples the pixels the scene has to draw while
+           doing it. */
+        <div className="flex min-h-[100dvh] justify-center bg-[#101014]">
+            <div
+                className="relative w-full max-w-[430px] overflow-hidden"
+                onPointerDown={onPointerDown}
+            >
+                <Aquarium look={look} onMeter={onMeter} onScene={value => (scene.current = value)} />
+                <SceneContext.Provider value={handle}>{children}</SceneContext.Provider>
+            </div>
         </div>
     );
 };

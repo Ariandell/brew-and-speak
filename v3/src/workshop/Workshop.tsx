@@ -31,15 +31,14 @@ export const Workshop = () => {
     useEffect(() => applyTheme(theme), [theme]);
 
     return (
-        <SceneProvider
-            look={{ palette: theme.shader, cup: theme.cup }}
-            onMeter={useCallback(setMeter, [])}
-        >
-            <div className="relative flex min-h-[100dvh] flex-col">
-                <header className="flex flex-wrap items-center gap-2 border-b border-line/60 bg-base/70 px-4 py-3">
-                    <span className="mr-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-text-faint">
-                        Майстерня
-                    </span>
+        /* The bar sits above the phone, not on it. Tooling drawn over the thing
+           being judged changes the thing being judged - every entry would be
+           looked at with a strip taken off the top. */
+        <div className="flex min-h-[100dvh] flex-col bg-[#101014]">
+            <header className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
+                <span className="mr-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-white/40">
+                    Майстерня
+                </span>
 
                     {ENTRIES.map(item => (
                         <button
@@ -48,7 +47,7 @@ export const Workshop = () => {
                             className={`rounded-pill px-3 py-1.5 text-[12px] font-bold transition-colors duration-quick ease-out ${
                                 item.id === entry.id
                                     ? 'bg-accent text-white'
-                                    : 'bg-surface/70 text-text-soft'
+                                    : 'bg-white/10 text-white/70'
                             }`}
                         >
                             {item.label}
@@ -63,7 +62,7 @@ export const Workshop = () => {
                             GPU is doing the work at all, which is the first
                             thing to rule out when a capable machine is slow. */}
                         <span
-                            className="font-mono text-[11px] tabular-nums text-text-faint"
+                            className="font-mono text-[11px] tabular-nums text-white/45"
                             title={meter.renderer}
                         >
                             {meter.fps} fps
@@ -76,18 +75,24 @@ export const Workshop = () => {
                                 onClick={() => setThemeIndex(index)}
                                 className={`rounded-pill px-3 py-1.5 text-[12px] font-bold transition-colors duration-quick ease-out ${
                                     index === themeIndex
-                                        ? 'bg-text text-base'
-                                        : 'bg-surface/70 text-text-soft'
+                                        ? 'bg-white text-black'
+                                        : 'bg-white/10 text-white/70'
                                 }`}
                             >
                                 {option.label}
                             </button>
                         ))}
-                    </span>
-                </header>
+                </span>
+            </header>
 
-                <main className={entry.bleed ? 'flex-grow' : 'flex-grow p-6'}>{entry.render()}</main>
-            </div>
-        </SceneProvider>
+            <SceneProvider
+                look={{ palette: theme.shader, cup: theme.cup }}
+                onMeter={useCallback(setMeter, [])}
+            >
+                <div className={entry.bleed ? 'min-h-[100dvh]' : 'min-h-[100dvh] p-6'}>
+                    {entry.render()}
+                </div>
+            </SceneProvider>
+        </div>
     );
 };
