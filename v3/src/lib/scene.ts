@@ -249,26 +249,30 @@ export interface Scene {
 }
 
 /**
- * The motion is a slow drift; sixty frames a second of it is wasted battery.
- *
  * The gate is a deadline that advances, not a comparison against the last
- * frame drawn. Comparing is the obvious way and it is wrong: on a 60Hz screen
- * two ticks are 33.34ms apart and the target is 33.33, so the pair only just
- * clears - and the moment a timestamp lands a hair early the frame is skipped
- * and the next chance is the third tick. Every third tick of 60Hz is 20 frames
- * a second. Measured at exactly 20.3 in simulation, which is what sent the
- * quality ladder down a rung on hardware that was never struggling.
+ * frame drawn. Comparing is the obvious way and it is wrong: at a target of
+ * thirty on a 60Hz screen, two ticks are 33.34ms apart against a 33.33
+ * threshold, so the pair only just clears - and the moment a timestamp lands a
+ * hair early the frame is skipped and the next chance is the third tick. Every
+ * third tick of 60Hz is 20 frames a second. Measured at exactly 20.3 in
+ * simulation, which is what sent the quality ladder down a rung on hardware
+ * that was never struggling.
  */
-const FRAME_MS = 1000 / 30;
+const frameMs = (fps: number) => 1000 / fps;
 
 /**
  * What to give up, and in what order, when the frame rate will not hold.
  *
- * Measured rather than guessed: dropping the water's resolution by three
- * quarters bought two frames a second, while turning off multisampling bought
- * seven. Multisampling is not paid at the edges of the cup - it makes every
- * pixel of the screen cost four samples, including the full-screen stretch
- * that has no edges at all. So resolution is the lever, not the water.
+ * Frame rate goes first, before any sharpness. A slow, continuous drift is the
+ * worst case for a low rate - panning is exactly where judder shows - but a
+ * crisp thirty still reads far better than a soft sixty, so the picture is the
+ * last thing to be spent.
+ *
+ * After that it is resolution, measured rather than guessed: dropping the
+ * water's resolution by three quarters bought two frames a second, while
+ * turning off multisampling bought seven. Multisampling is not paid at the
+ * edges of the cup - it makes every pixel of the screen cost four samples,
+ * including the full-screen stretch that has no edges at all.
  *
  * The bubbles stay at every rung. Turning them off was in the first version of
  * this ladder, until the measurement said the whole water pass is not the cost
@@ -280,12 +284,13 @@ const FRAME_MS = 1000 / 30;
  * noticeable than one that is simply softer.
  */
 const QUALITY = [
-    { dpr: 2, water: 0.55 },
-    { dpr: 1.5, water: 0.5 },
-    { dpr: 1.15, water: 0.45 },
+    { fps: 60, dpr: 2, water: 0.55 },
+    { fps: 30, dpr: 2, water: 0.55 },
+    { fps: 30, dpr: 1.5, water: 0.5 },
+    { fps: 30, dpr: 1.15, water: 0.45 },
 ];
-/** Below this for a whole second, and a rung comes off. */
-const FLOOR_FPS = 24;
+/** A rung comes off below this share of what the rung is asking for. */
+const FLOOR = 0.8;
 
 const compile = (gl: WebGLRenderingContext, type: number, source: string) => {
     const shader = gl.createShader(type)!;
@@ -495,7 +500,8 @@ export const createScene = (
         // Advance the deadline rather than resetting it, so the average holds
         // at the target. If it has fallen far behind - a hidden tab, a stall -
         // start again from now instead of drawing a burst to catch up.
-        due = (now - due > FRAME_MS ? now : due) + FRAME_MS;
+        const step = frameMs(QUALITY[rung].fps);
+        due = (now - due > step ? now : due) + step;
 
         resize();
         draw(now);
@@ -509,7 +515,7 @@ export const createScene = (
             // Two bad seconds in a row, not one. A single slow second happens
             // while assets are still arriving, and giving up quality for that
             // is a permanent price for a temporary problem.
-            slow = measured < FLOOR_FPS ? slow + 1 : 0;
+            slow = measured < QUALITY[rung].fps * FLOOR ? slow + 1 : 0;
             if (slow >= 2 && rung < QUALITY.length - 1) {
                 rung++;
                 slow = 0;
