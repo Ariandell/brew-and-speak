@@ -36,7 +36,7 @@ export const Workshop = () => {
             onMeter={useCallback(setMeter, [])}
         >
             <div className="relative flex min-h-[100dvh] flex-col">
-                <header className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 py-3 backdrop-blur-sm">
+                <header className="flex flex-wrap items-center gap-2 border-b border-line/60 bg-base/70 px-4 py-3">
                     <span className="mr-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-text-faint">
                         Майстерня
                     </span>

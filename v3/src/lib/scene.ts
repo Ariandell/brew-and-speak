@@ -263,6 +263,29 @@ export interface Scene {
 const frameMs = (fps: number) => 1000 / fps;
 
 /**
+ * Switches for finding out what is actually slow on a machine that should not
+ * be. Reading them from the address bar means a hypothesis can be tested in
+ * the time it takes to edit a URL, instead of a build and a round trip:
+ *
+ *   ?noaa      multisampling off
+ *   ?nocup     skip the model
+ *   ?nowater   skip the water and the stretch
+ *   ?dpr=1     cap the pixel density
+ *   ?noladder  never step down, so the raw number is visible
+ */
+const flags = (() => {
+    const q = typeof location === 'undefined' ? new URLSearchParams() : new URLSearchParams(location.search);
+    const dpr = Number(q.get('dpr'));
+    return {
+        noaa: q.has('noaa'),
+        nocup: q.has('nocup'),
+        nowater: q.has('nowater'),
+        noladder: q.has('noladder'),
+        dpr: Number.isFinite(dpr) && dpr > 0 ? dpr : 0,
+    };
+})();
+
+/**
  * What to give up, and in what order, when the frame rate will not hold.
  *
  * Frame rate goes first, before any sharpness. A slow, continuous drift is the
@@ -330,9 +353,14 @@ export const createScene = (
     meshUrl?: string,
 ): Scene | null => {
     const gl = (canvas.getContext('webgl', {
-        // Multisampling applies to the default framebuffer only, which is
-        // exactly where the cup is drawn and the only place with edges.
-        antialias: true,
+        /* No multisampling. Asking for it hands the driver the choice of how
+           many samples, and ANGLE on Direct3D can pick eight - at which point
+           every pixel of the screen costs eight, including the full-screen
+           stretch that has no edges at all, and the buffer has to be resolved
+           every frame. The cup's edges are handled by drawing the whole scene
+           slightly larger than the screen and shrinking it, which costs a
+           known amount instead of whatever the driver decides. */
+        antialias: false,
         alpha: false,
         depth: true,
     }) ?? canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
@@ -385,6 +413,21 @@ export const createScene = (
     const waterTarget = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, waterTarget);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, waterTexture, 0);
+
+    /* Where the whole frame is assembled before it is shrunk onto the screen.
+       Shrinking with a linear filter is what smooths the cup's silhouette. */
+    const sceneTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, sceneTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    const sceneDepth = gl.createRenderbuffer();
+    const sceneTarget = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTexture, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, sceneDepth);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     /* Which GPU is really doing this. Chrome falls back to a software
@@ -426,6 +469,8 @@ export const createScene = (
     let height = 0;
     let waterWidth = 0;
     let waterHeight = 0;
+    let sceneWidth = 0;
+    let sceneHeight = 0;
     let rung = 0;
 
     /* Reading clientWidth makes the browser settle the layout first. Doing it
@@ -439,7 +484,7 @@ export const createScene = (
     const resize = () => {
         if (!sizeDirty) return;
         sizeDirty = false;
-        const dpr = Math.min(window.devicePixelRatio || 1, QUALITY[rung].dpr);
+        const dpr = Math.min(window.devicePixelRatio || 1, flags.dpr || QUALITY[rung].dpr);
         const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
         const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
         if (width === w && height === h) return;
@@ -453,6 +498,17 @@ export const createScene = (
         waterHeight = Math.max(1, Math.round(h * QUALITY[rung].water));
         gl.bindTexture(gl.TEXTURE_2D, waterTexture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, waterWidth, waterHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+        /* Supersample only where the screen is coarse. A dense display already
+           has more pixels than the eye resolves, so drawing even more of them
+           buys nothing and costs the square of it. */
+        const over = dpr >= 1.75 ? 1 : 1.5;
+        sceneWidth = Math.max(1, Math.round(w * over));
+        sceneHeight = Math.max(1, Math.round(h * over));
+        gl.bindTexture(gl.TEXTURE_2D, sceneTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, sceneWidth, sceneHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, sceneDepth);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, sceneWidth, sceneHeight);
     };
 
     const drawFullscreen = (attribute: number) => {
@@ -465,6 +521,12 @@ export const createScene = (
     const draw = (time: number) => {
         const seconds = time / 1000;
 
+        if (flags.nowater) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget);
+            gl.viewport(0, 0, sceneWidth, sceneHeight);
+            gl.clearColor(0.86, 0.84, 0.80, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        } else {
         gl.bindFramebuffer(gl.FRAMEBUFFER, waterTarget);
         gl.viewport(0, 0, waterWidth, waterHeight);
         gl.useProgram(waterProgram);
@@ -480,17 +542,19 @@ export const createScene = (
         gl.uniform3fv(waterU.ripple, ripple);
         drawFullscreen(waterU.pos);
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.viewport(0, 0, width, height);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, sceneTarget);
+        gl.viewport(0, 0, sceneWidth, sceneHeight);
         gl.useProgram(upscaleProgram);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, waterTexture);
         gl.uniform1i(upscaleU.water, 0);
         gl.uniform1f(upscaleU.time, seconds);
-        gl.uniform1f(upscaleU.grain, current.palette.grain);
+        // Grain waits for the final pass, at the size of a real pixel.
+        gl.uniform1f(upscaleU.grain, 0);
         drawFullscreen(upscaleU.pos);
+        }
 
-        if (cupPass && cupMesh) {
+        if (cupPass && cupMesh && !flags.nocup) {
             /* Chase the target. A fixed fraction per frame rather than a
                duration: interrupting it mid-way needs no special case, which a
                timed animation always does. */
@@ -509,8 +573,20 @@ export const createScene = (
             // The water wrote no depth, so the buffer has to start clean or the
             // cup tests against whatever was left in it last frame.
             gl.clear(gl.DEPTH_BUFFER_BIT);
-            cupPass.draw(cupMesh, HAPPY, seconds, width / height, current.cup, actual);
+            cupPass.draw(cupMesh, HAPPY, seconds, sceneWidth / sceneHeight, current.cup, actual);
         }
+
+        /* Down onto the screen. The linear minification is the antialiasing,
+           and the grain lands here so it stays one pixel wide. */
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, width, height);
+        gl.useProgram(upscaleProgram);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, sceneTexture);
+        gl.uniform1i(upscaleU.water, 0);
+        gl.uniform1f(upscaleU.time, seconds);
+        gl.uniform1f(upscaleU.grain, current.palette.grain);
+        drawFullscreen(upscaleU.pos);
     };
 
     const loop = (now: number) => {
@@ -537,7 +613,7 @@ export const createScene = (
             // while assets are still arriving, and giving up quality for that
             // is a permanent price for a temporary problem.
             slow = measured < QUALITY[rung].fps * FLOOR ? slow + 1 : 0;
-            if (slow >= 2 && rung < QUALITY.length - 1) {
+            if (!flags.noladder && slow >= 2 && rung < QUALITY.length - 1) {
                 rung++;
                 slow = 0;
                 // Force the next resize to rebuild at the new scale.
