@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { SceneProvider } from '../ui/SceneProvider';
+import { SceneProvider, type Reading } from '../ui/SceneProvider';
 import { THEMES, applyTheme } from '../app/themes';
 import { ENTRIES } from './registry';
 
@@ -17,7 +17,13 @@ import { ENTRIES } from './registry';
 export const Workshop = () => {
     const [themeIndex, setThemeIndex] = useState(0);
     const [entryId, setEntryId] = useState(ENTRIES[0].id);
-    const [meter, setMeter] = useState({ fps: 0, quality: 0 });
+    const [meter, setMeter] = useState<Reading>({
+        fps: 0,
+        quality: 0,
+        renderer: '',
+        width: 0,
+        height: 0,
+    });
 
     const theme = THEMES[themeIndex];
     const entry = ENTRIES.find(e => e.id === entryId) ?? ENTRIES[0];
@@ -27,7 +33,7 @@ export const Workshop = () => {
     return (
         <SceneProvider
             look={{ palette: theme.shader, cup: theme.cup }}
-            onMeter={useCallback((fps: number, quality: number) => setMeter({ fps, quality }), [])}
+            onMeter={useCallback(setMeter, [])}
         >
             <div className="relative flex min-h-[100dvh] flex-col">
                 <header className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 py-3 backdrop-blur-sm">
@@ -53,10 +59,16 @@ export const Workshop = () => {
                         {/* Measured, not guessed. The rung shows only once the
                             scene has given something up, so seeing it at all is
                             the signal that this device could not hold full
-                            quality. */}
-                        <span className="font-mono text-[11px] tabular-nums text-text-faint">
+                            quality - and the renderer name says whether a real
+                            GPU is doing the work at all, which is the first
+                            thing to rule out when a capable machine is slow. */}
+                        <span
+                            className="font-mono text-[11px] tabular-nums text-text-faint"
+                            title={meter.renderer}
+                        >
                             {meter.fps} fps
                             {meter.quality > 0 ? ' · q' + meter.quality : ''}
+                            {meter.width > 0 ? ' · ' + meter.width + '×' + meter.height : ''}
                         </span>
                         {THEMES.map((option, index) => (
                             <button

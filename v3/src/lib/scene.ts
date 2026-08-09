@@ -245,6 +245,8 @@ export interface Scene {
     fps(): number;
     /** Which rung of the quality ladder is in use. Zero is full. */
     quality(): number;
+    /** What is actually drawing, and at what size. */
+    info(): { renderer: string; width: number; height: number };
     destroy(): void;
 }
 
@@ -385,6 +387,15 @@ export const createScene = (
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, waterTexture, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+    /* Which GPU is really doing this. Chrome falls back to a software
+       rasteriser when acceleration is off or the card is blocklisted, and that
+       fallback looks exactly like a slow device from the inside - so it has to
+       be visible rather than guessed at. */
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = debugInfo
+        ? String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL))
+        : String(gl.getParameter(gl.RENDERER));
+
     const cupPass = createCupPass(gl, (type, source) => compile(gl, type, source));
     let cupMesh: CupMesh | null = null;
     if (meshUrl) {
@@ -417,7 +428,17 @@ export const createScene = (
     let waterHeight = 0;
     let rung = 0;
 
+    /* Reading clientWidth makes the browser settle the layout first. Doing it
+       inside the frame loop meant paying for that on every single frame, for a
+       number that changes only when the window does. */
+    let sizeDirty = true;
+    const observer =
+        typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => (sizeDirty = true));
+    observer?.observe(canvas);
+
     const resize = () => {
+        if (!sizeDirty) return;
+        sizeDirty = false;
         const dpr = Math.min(window.devicePixelRatio || 1, QUALITY[rung].dpr);
         const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
         const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
@@ -522,6 +543,7 @@ export const createScene = (
                 // Force the next resize to rebuild at the new scale.
                 width = 0;
                 height = 0;
+                sizeDirty = true;
             }
         }
     };
@@ -574,9 +596,11 @@ export const createScene = (
         },
         fps: () => measured,
         quality: () => rung,
+        info: () => ({ renderer, width, height }),
         destroy() {
             alive = false;
             stop();
+            observer?.disconnect();
             document.removeEventListener('visibilitychange', onVisibility);
             canvas.removeEventListener('webglcontextlost', onLost);
         },

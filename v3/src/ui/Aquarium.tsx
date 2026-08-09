@@ -1,10 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { createScene, type Scene, type SceneLook } from '../lib/scene';
 
+/** What the workshop shows in its corner, so nothing has to be guessed. */
+export interface Reading {
+    fps: number;
+    quality: number;
+    renderer: string;
+    width: number;
+    height: number;
+}
+
 interface Props {
     look: SceneLook;
     /** Reports frame rate once a second, so the workshop can judge by measurement. */
-    onMeter?: (fps: number, quality: number) => void;
+    onMeter?: (reading: Reading) => void;
     /** Hands the scene out once it exists, or null when WebGL is missing. */
     onScene?: (scene: Scene | null) => void;
 }
@@ -50,7 +59,12 @@ export const Aquarium = ({ look, onMeter, onScene }: Props) => {
 
     useEffect(() => {
         if (!onMeter) return;
-        const id = window.setInterval(() => onMeter(scene.current?.fps() ?? 0, scene.current?.quality() ?? 0), 1000);
+        const id = window.setInterval(() => {
+            const value = scene.current;
+            if (!value) return;
+            const { renderer, width, height } = value.info();
+            onMeter({ fps: value.fps(), quality: value.quality(), renderer, width, height });
+        }, 1000);
         return () => clearInterval(id);
     }, [onMeter]);
 

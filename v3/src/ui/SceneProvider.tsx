@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
-import { Aquarium } from './Aquarium';
+import { Aquarium, type Reading } from './Aquarium';
 import type { CupPose } from '../lib/cup';
 import type { Scene, SceneLook } from '../lib/scene';
 
@@ -15,7 +15,7 @@ export const useScene = () => useContext(SceneContext);
 
 interface Props {
     look: SceneLook;
-    onMeter?: (fps: number, quality: number) => void;
+    onMeter?: (reading: Reading) => void;
     children: ReactNode;
 }
 
@@ -28,6 +28,8 @@ interface Props {
  * point: the interface is meant to read as the surface of the water rather
  * than as glass in front of it.
  */
+export type { Reading };
+
 export const SceneProvider = ({ look, onMeter, children }: Props) => {
     const scene = useRef<Scene | null>(null);
 
