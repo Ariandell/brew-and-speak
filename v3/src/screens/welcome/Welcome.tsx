@@ -45,7 +45,7 @@ export const Welcome = ({ onStart }: Props) => {
     useEffect(() => {
         // Up and slightly off centre, so the wordmark owns the lower left and
         // the letters cross the cup's base rather than clearing it.
-        scene?.setPose({ x: 0.15, y: 0.07, scale: 0.74 });
+        scene?.setPose({ x: 0.13, y: 0.14, scale: 1.02 });
     }, [scene]);
 
     /* Every so often the cup glances at the one thing there is to do. Reacting

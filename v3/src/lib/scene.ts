@@ -1,4 +1,13 @@
-import { createCupPass, HAPPY, loadCup, RESTING, type CupColours, type CupMesh, type CupPose } from './cup';
+import {
+    createCupPass,
+    HAPPY,
+    loadCup,
+    RESTING,
+    type CupColours,
+    type CupMesh,
+    type CupPose,
+    type FaceShape,
+} from './cup';
 
 /**
  * The space the app lives in: water, bubbles, and the cup floating in it.
@@ -462,6 +471,27 @@ export const createScene = (
     const actual: CupPose = { ...RESTING };
     let ripple: [number, number, number] = [0, 0, -1];
 
+    /* The face is copied so its eyes can be closed without editing the mood
+       everyone else shares. */
+    const face: FaceShape = { ...HAPPY, eyeRadius: [...HAPPY.eyeRadius] };
+
+    /* Blinking, and looking about.
+     *
+     * This is where the character actually lives. Reacting to a touch only
+     * works if a touch happens, and on a first screen there is nothing anyone
+     * needs to touch except the one button - nobody drags a finger across an
+     * empty screen to see what happens. So the cup has to be worth watching
+     * while it is left alone, and of everything that does that, a blink is by
+     * far the cheapest and the strongest: an object that never closes its eyes
+     * is a model, and one that does is alive.
+     */
+    const BLINK_MS = 130;
+    let blinkAt = 1200;
+    let blinkFrom = -1;
+    let doubleBlink = false;
+    let glanceAt = 4000;
+    let lastInput = -1e9;
+
     let raf = 0;
     let due = 0;
     let slow = 0;
@@ -596,10 +626,41 @@ export const createScene = (
             wanted.lookYaw *= 0.986;
             wanted.lookPitch *= 0.986;
 
+            /* Eyes. A cosine over the blink gives a close and an open in one
+               curve, without a second timer for the way back. */
+            if (blinkFrom < 0 && time >= blinkAt) blinkFrom = time;
+            let openness = 1;
+            if (blinkFrom >= 0) {
+                const through = (time - blinkFrom) / BLINK_MS;
+                if (through >= 1) {
+                    blinkFrom = -1;
+                    // Two in quick succession now and then. It is what real
+                    // blinking does, and its absence is felt without being seen.
+                    blinkAt = time + (doubleBlink ? 170 : 2400 + Math.random() * 4200);
+                    doubleBlink = !doubleBlink && Math.random() < 0.28;
+                } else {
+                    openness = Math.abs(Math.cos(through * Math.PI));
+                }
+            }
+            /* A closed eye is a line, not an absence. Squashing the radius all
+               the way to nothing makes the ellipse thinner than the shader's
+               own edge softening and it disappears entirely - which reads as
+               the eyes being deleted for a moment rather than shut. */
+            face.eyeRadius[1] = HAPPY.eyeRadius[1] * Math.max(openness, 0.14);
+
+            /* Looking about, but only while it is being left alone - glancing
+               away the moment someone touches the screen would read as the
+               opposite of attention. */
+            if (time - lastInput > 2200 && time >= glanceAt) {
+                glanceAt = time + 3800 + Math.random() * 5200;
+                wanted.lookYaw = (Math.random() - 0.5) * 0.9;
+                wanted.lookPitch = (Math.random() - 0.5) * 0.3;
+            }
+
             // The water wrote no depth, so the buffer has to start clean or the
             // cup tests against whatever was left in it last frame.
             gl.clear(gl.DEPTH_BUFFER_BIT);
-            cupPass.draw(cupMesh, HAPPY, seconds, sceneWidth / sceneHeight, current.cup, actual);
+            cupPass.draw(cupMesh, face, seconds, sceneWidth / sceneHeight, current.cup, actual);
         }
 
         /* Down onto the screen. The linear minification is the antialiasing,
@@ -697,6 +758,7 @@ export const createScene = (
             this.look(x, y);
         },
         look(x, y) {
+            lastInput = performance.now();
             wanted.lookYaw = (x - 0.5) * 1.1;
             wanted.lookPitch = (y - 0.5) * 0.45;
         },
