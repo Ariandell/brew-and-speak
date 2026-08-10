@@ -170,8 +170,11 @@ export const Welcome = ({ onStart }: Props) => {
                 {/* Not a pill. A pill is the shape an interface takes when no
                     decision was made about it - this one has a leading mark, a
                     label and a direction, and reads as a control. */}
+                {/* The one thing anyone actually does on this screen, so it is
+                    the one place a reaction is certain to be seen. */}
                 <button
                     ref={action}
+                    onPointerDown={() => scene?.express('surprised', 850)}
                     onClick={onStart}
                     className="surface mt-7 flex h-[62px] w-full items-center gap-4 rounded-[14px] bg-accent pl-5 pr-4 text-left transition-transform duration-quick ease-out active:scale-[0.985]"
                     style={{ animationDelay: '520ms' }}

@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react';
 import { Aquarium, type Reading } from './Aquarium';
-import type { CupPose } from '../lib/cup';
+import type { CupPose, Mood } from '../lib/cup';
 import type { Scene, SceneLook } from '../lib/scene';
 
 interface Handle {
@@ -8,6 +8,8 @@ interface Handle {
     setPose(pose: Partial<CupPose>): void;
     /** Turn the cup's head toward something on screen. */
     lookAt(element: HTMLElement | null): void;
+    /** Wear a mood for a moment. Passing 'happy' settles back for good. */
+    express(mood: Mood, holdMs?: number): void;
 }
 
 const SceneContext = createContext<Handle | null>(null);
@@ -39,6 +41,7 @@ export const SceneProvider = ({ look, onMeter, children }: Props) => {
     const handle = useMemo<Handle>(
         () => ({
             setPose: pose => scene.current?.setPose(pose),
+            express: (mood, holdMs) => scene.current?.express(mood, holdMs),
             lookAt: element => {
                 const box = frame.current?.getBoundingClientRect();
                 const target = element?.getBoundingClientRect();

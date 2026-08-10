@@ -2,11 +2,13 @@ import {
     createCupPass,
     HAPPY,
     loadCup,
+    MOODS,
     RESTING,
     type CupColours,
     type CupMesh,
     type CupPose,
     type FaceShape,
+    type Mood,
 } from './cup';
 
 /**
@@ -252,6 +254,8 @@ export interface Scene {
     touch(x: number, y: number): void;
     /** Turn the cup's head without disturbing the water. */
     look(x: number, y: number): void;
+    /** Wear a mood for a while, then drift back to the resting one. */
+    express(mood: Mood, holdMs?: number): void;
     /** Frames per second over the last second, for judging by measurement. */
     fps(): number;
     /** Which rung of the quality ladder is in use. Zero is full. */
@@ -471,9 +475,19 @@ export const createScene = (
     const actual: CupPose = { ...RESTING };
     let ripple: [number, number, number] = [0, 0, -1];
 
-    /* The face is copied so its eyes can be closed without editing the mood
-       everyone else shares. */
-    const face: FaceShape = { ...HAPPY, eyeRadius: [...HAPPY.eyeRadius] };
+    /* Two copies of the face. `blended` is the mood as it currently stands
+       between where it was and where it is heading; `face` is that with the
+       blink applied. They have to be separate, or each frame would blend from
+       a half-shut eye and the blink would eat the mood. */
+    const clone = (shape: FaceShape): FaceShape => ({
+        ...shape,
+        eyeRadius: [...shape.eyeRadius],
+        mouth: [...shape.mouth],
+    });
+    const blended = clone(HAPPY);
+    const face = clone(HAPPY);
+    let mood: FaceShape = HAPPY;
+    let revertAt = -1;
 
     /* Blinking, and looking about.
      *
@@ -626,6 +640,30 @@ export const createScene = (
             wanted.lookYaw *= 0.986;
             wanted.lookPitch *= 0.986;
 
+            /* The mood, always on its way somewhere. Nothing here switches:
+               every number slides, and because the mouth is described by a
+               signed sag, the road from a smile to a frown runs through a
+               straight line rather than through a discontinuity. */
+            if (revertAt > 0 && time >= revertAt) {
+                mood = HAPPY;
+                revertAt = -1;
+            }
+            const toward = 0.13;
+            blended.unit += (mood.unit - blended.unit) * toward;
+            blended.centreY += (mood.centreY - blended.centreY) * toward;
+            blended.eyeSeparation += (mood.eyeSeparation - blended.eyeSeparation) * toward;
+            blended.eyeRadius[0] += (mood.eyeRadius[0] - blended.eyeRadius[0]) * toward;
+            blended.eyeRadius[1] += (mood.eyeRadius[1] - blended.eyeRadius[1]) * toward;
+            for (let i = 0; i < 4; i++) {
+                blended.mouth[i] += (mood.mouth[i] - blended.mouth[i]) * toward;
+            }
+
+            face.unit = blended.unit;
+            face.centreY = blended.centreY;
+            face.eyeSeparation = blended.eyeSeparation;
+            face.eyeRadius[0] = blended.eyeRadius[0];
+            for (let i = 0; i < 4; i++) face.mouth[i] = blended.mouth[i];
+
             /* Eyes. A cosine over the blink gives a close and an open in one
                curve, without a second timer for the way back. */
             if (blinkFrom < 0 && time >= blinkAt) blinkFrom = time;
@@ -646,7 +684,7 @@ export const createScene = (
                the way to nothing makes the ellipse thinner than the shader's
                own edge softening and it disappears entirely - which reads as
                the eyes being deleted for a moment rather than shut. */
-            face.eyeRadius[1] = HAPPY.eyeRadius[1] * Math.max(openness, 0.14);
+            face.eyeRadius[1] = blended.eyeRadius[1] * Math.max(openness, 0.14);
 
             /* Looking about, but only while it is being left alone - glancing
                away the moment someone touches the screen would read as the
@@ -756,6 +794,10 @@ export const createScene = (
             // where the height is one and the width is the aspect.
             ripple = [x * aspect, 1 - y, performance.now() / 1000];
             this.look(x, y);
+        },
+        express(name, holdMs = 900) {
+            mood = MOODS[name];
+            revertAt = name === 'happy' ? -1 : performance.now() + holdMs;
         },
         look(x, y) {
             lastInput = performance.now();

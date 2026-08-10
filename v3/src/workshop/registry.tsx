@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { BackgroundEntry } from './entries/BackgroundEntry';
 import { WelcomeEntry } from './entries/WelcomeEntry';
+import { FaceEntry } from './entries/FaceEntry';
 
 export interface Entry {
     id: string;
@@ -19,5 +20,6 @@ export interface Entry {
  */
 export const ENTRIES: Entry[] = [
     { id: 'welcome', label: 'Вступ', bleed: true, render: () => <WelcomeEntry /> },
+    { id: 'face', label: 'Обличчя', bleed: true, render: () => <FaceEntry /> },
     { id: 'scene', label: 'Сцена', bleed: true, render: () => <BackgroundEntry /> },
 ];

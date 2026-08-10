@@ -47,8 +47,7 @@ uniform float uFaceUnit;
 uniform float uFaceY;
 uniform vec2 uEye;        // radii, x and y
 uniform float uEyeSep;    // half the distance between centres
-uniform vec4 uMouth;      // radius, half span, centre offset, half thickness
-uniform float uMouthFlip; // +1 a smile, -1 the other thing
+uniform vec4 uMouth;      // vertex height, half width, sag, half thickness
 
 varying vec3 vNormal;
 varying vec3 vLocal;
@@ -99,19 +98,41 @@ void main() {
     vec2 eye = vec2(abs(f.x) - uEyeSep, f.y) / uEye;
     float ink = 1.0 - smoothstep(1.0 - EDGE / uEye.x, 1.0 + EDGE / uEye.x, length(eye));
 
-    vec2 m = vec2(f.x, (f.y - uMouth.z) * uMouthFlip);
-    float along = atan(m.x, -m.y);
+    /* The mouth is described by how deeply it sags rather than by a radius and
+       a flag for which way up it is. A flag cannot be interpolated - halfway
+       between a smile and a frown there is no such thing as half a flag - but a
+       signed sag passes through zero, and zero is a straight line, which is a
+       real expression in its own right. Everything about a mood can then be
+       moved rather than switched. */
+    float vertexY = uMouth.x;
+    float halfWidth = uMouth.y;
+    float sag = uMouth.z;
+    float thick = uMouth.w;
+
+    /* Away from zero, or the radius runs off to infinity. At four thousandths
+       the arc is already straight to the eye. */
+    float s = sag >= 0.0 ? max(sag, 0.004) : min(sag, -0.004);
+    float bend = sign(s);
+
+    /* The sagitta relation: a chord of this width with this much sag lies on a
+       circle of exactly this radius. */
+    float R = (halfWidth * halfWidth + s * s) / (2.0 * abs(s));
+    vec2 centre = vec2(0.0, vertexY + bend * R);
+    float halfSpan = asin(clamp(halfWidth / R, 0.0, 1.0));
+
+    vec2 d = f - centre;
+    float along = atan(d.x, -bend * d.y);
     float toStroke;
-    if (abs(along) <= uMouth.y) {
-        toStroke = abs(length(m) - uMouth.x);
+    if (abs(along) <= halfSpan) {
+        toStroke = abs(length(d) - R);
     } else {
         /* Round caps: past the ends of the span, the nearest point of the
            stroke is its endpoint. Without this the mouth finishes in a
            square-cut edge that reads as a mistake. */
-        vec2 cap = uMouth.x * vec2(sign(m.x) * sin(uMouth.y), -cos(uMouth.y));
-        toStroke = length(m - cap);
+        vec2 cap = centre + R * vec2(sign(d.x) * sin(halfSpan), -bend * cos(halfSpan));
+        toStroke = length(f - cap);
     }
-    ink = max(ink, 1.0 - smoothstep(uMouth.w - EDGE, uMouth.w + EDGE, toStroke));
+    ink = max(ink, 1.0 - smoothstep(thick - EDGE, thick + EDGE, toStroke));
 
     /* Fading by how far round the cylinder the surface has turned stops the
        face smearing down the sides, which is what any projection does at
@@ -163,10 +184,9 @@ export interface FaceShape {
     centreY: number;
     eyeRadius: [number, number];
     eyeSeparation: number;
-    /** Radius, half span, centre offset, half thickness. */
+    /** Vertex height, half width, sag, half thickness. Sag is signed: positive
+     *  curves up into a smile, negative down into a frown, zero is a line. */
     mouth: [number, number, number, number];
-    /** +1 a smile, -1 a frown. */
-    mouthFlip: number;
 }
 
 /**
@@ -196,9 +216,27 @@ export const HAPPY: FaceShape = {
     centreY: 0.014,
     eyeRadius: [0.160, 0.165],
     eyeSeparation: 0.5,
-    mouth: [0.465, 0.879, -0.035, 0.030],
-    mouthFlip: 1,
+    /* The same curve the reference has, restated as sag: its arc of radius
+       0.465 over a half-span of 0.879 is a chord 0.358 wide sagging 0.169. */
+    mouth: [-0.5, 0.358, 0.169, 0.03],
 };
+
+/** Eyes wide, mouth a deep small round - the shape of having just noticed. */
+export const SURPRISED: FaceShape = {
+    ...HAPPY,
+    eyeRadius: [0.205, 0.215],
+    mouth: [-0.42, 0.2, 0.19, 0.035],
+};
+
+/** The same face with the sag on the other side of zero. */
+export const SAD: FaceShape = {
+    ...HAPPY,
+    eyeRadius: [0.15, 0.132],
+    mouth: [-0.28, 0.34, -0.13, 0.028],
+};
+
+export const MOODS = { happy: HAPPY, surprised: SURPRISED, sad: SAD };
+export type Mood = keyof typeof MOODS;
 
 export interface CupColours {
     lid: Vec3;
@@ -317,7 +355,6 @@ export const createCupPass = (
         eye: at('uEye'),
         eyeSep: at('uEyeSep'),
         mouth: at('uMouth'),
-        mouthFlip: at('uMouthFlip'),
     };
 
     let projection: Mat4 | null = null;
@@ -383,7 +420,6 @@ export const createCupPass = (
             gl.uniform2fv(u.eye, face.eyeRadius);
             gl.uniform1f(u.eyeSep, face.eyeSeparation);
             gl.uniform4fv(u.mouth, face.mouth);
-            gl.uniform1f(u.mouthFlip, face.mouthFlip);
 
             gl.bindBuffer(gl.ARRAY_BUFFER, mesh.position);
             gl.enableVertexAttribArray(aPos);
