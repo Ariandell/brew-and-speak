@@ -6,3 +6,5 @@ sandbox
 v2/dist
 .env
 .env.*
+
+.vercel
