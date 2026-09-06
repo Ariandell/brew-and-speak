@@ -6,5 +6,11 @@
   "scripts": {
     "build": "npm --prefix v3 run build",
     "test": "npm --prefix v3 run app:release-check"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.4",
+    "express": "^5.2.1",
+    "sanitize-html": "^2.17.7",
+    "zod": "^4.5.4"
   }
 }
