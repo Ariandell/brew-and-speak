@@ -122,3 +122,30 @@ test('enabled writes fail closed when the additive migration was not applied', a
     await unlink(path).catch(() => undefined);
   }
 });
+
+test('health remains available when the deployment database URL is malformed', async () => {
+  const originalUrl = process.env.TURSO_DATABASE_URL;
+  const originalWrites = process.env.V3_WRITES_ENABLED;
+  process.env.TURSO_DATABASE_URL = 'not-a-database-url';
+  process.env.V3_WRITES_ENABLED = 'false';
+  const server = createProductionApp({ botToken: token }).listen(0);
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/v2/health`);
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), {
+      status: 'degraded',
+      service: 'english-with-coffee-api',
+      apiVersion: 'v2',
+      database: 'configuration-error',
+      writes: 'disabled',
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    if (originalUrl === undefined) delete process.env.TURSO_DATABASE_URL;
+    else process.env.TURSO_DATABASE_URL = originalUrl;
+    if (originalWrites === undefined) delete process.env.V3_WRITES_ENABLED;
+    else process.env.V3_WRITES_ENABLED = originalWrites;
+  }
+});

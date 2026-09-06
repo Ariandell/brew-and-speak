@@ -44,13 +44,37 @@ const rewriteForModule = (app: Express) => (request: Request, response: Response
  * module namespace and is never exposed to product callers.
  */
 export const createProductionApp = (dependencies: ProductionAppDependencies = {}): Express => {
-  const readDatabase = dependencies.readDatabase === undefined ? createReadOnlyDatabaseFromEnv() : dependencies.readDatabase;
-  const writeDatabase = dependencies.writeDatabase === undefined ? createWriteDatabaseFromEnv() : dependencies.writeDatabase;
   const databaseUrl = dependencies.databaseUrl ?? process.env.TURSO_DATABASE_URL ?? '';
   const botToken = dependencies.botToken ?? process.env.TELEGRAM_BOT_TOKEN;
   const writesEnabled = dependencies.writesEnabled ?? process.env.V3_WRITES_ENABLED === 'true';
+  // A malformed deployment variable must never crash the serverless function at
+  // module evaluation time. Keep health available and let the normal API return
+  // a controlled 503 until the configuration is corrected.
+  let databaseConfigurationError: unknown = null;
+  let readDatabase: ReadOnlyDatabase | null = dependencies.readDatabase ?? null;
+  let writeDatabase: WriteDatabase | null = dependencies.writeDatabase ?? null;
+  try {
+    if (dependencies.readDatabase === undefined) readDatabase = createReadOnlyDatabaseFromEnv();
+    // Do not construct a write-capable client while the production write gate is closed.
+    if (writesEnabled && dependencies.writeDatabase === undefined) writeDatabase = createWriteDatabaseFromEnv();
+  } catch (error) {
+    databaseConfigurationError = error;
+    readDatabase = null;
+    writeDatabase = null;
+    console.error('[production-api] database client initialization failed', error);
+  }
   const app = express();
   app.disable('x-powered-by');
+
+  app.get('/api/v2/health', (_request, response) => {
+    response.status(databaseConfigurationError ? 503 : 200).json({
+      status: databaseConfigurationError ? 'degraded' : 'ok',
+      service: 'english-with-coffee-api',
+      apiVersion: 'v2',
+      database: databaseConfigurationError ? 'configuration-error' : (readDatabase ? 'configured' : 'not-configured'),
+      writes: writesEnabled ? 'enabled' : 'disabled',
+    });
+  });
 
   if (writesEnabled && readDatabase && writeDatabase && botToken && databaseUrl) {
     const schemaReady = writeDatabase.execute({
