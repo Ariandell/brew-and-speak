@@ -38,6 +38,9 @@ test('production composition provisions verified students and exposes canonical 
       VALUES ('900','Teacher','teacher','teacher',0)`, args: [] },
     { sql: `INSERT INTO levels (id,title,description,"order") VALUES (2,'A1','First course',1)`, args: [] },
     { sql: `INSERT INTO lessons (id,level_id,title,"order") VALUES (10,2,'Welcome',1)`, args: [] },
+    { sql: `INSERT INTO homework_submissions
+      (id,user_id,lesson_id,text,submitted_at,status)
+      VALUES (99,'demo-user',10,'Orphaned demo answer','2026-01-01T00:00:00.000Z','pending')`, args: [] },
   ]);
   await applySandboxMigrationPlan(writeDatabase);
   const readDatabase = createReadOnlyDatabase({ url });
@@ -67,6 +70,9 @@ test('production composition provisions verified students and exposes canonical 
     assert.equal((await course.json()).course.courseId, 2);
 
     const teacherHeaders = signed(900, 'Teacher');
+    const homework = await fetch(`${base}/api/v2/teacher/homework`, { headers: teacherHeaders });
+    assert.equal(homework.status, 200);
+    assert.deepEqual((await homework.json()).items, []);
     const createdLesson = await fetch(`${base}/api/v2/teacher/courses/2/lessons`, {
       method: 'POST', headers: { ...teacherHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Production lesson', order: 2 }),

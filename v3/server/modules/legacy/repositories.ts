@@ -270,29 +270,41 @@ export const createLegacyReadRepositories = (database: ReadOnlyDatabase) => ({
 
   async getHomeworkById(submissionId: number): Promise<LegacyHomeworkSubmission | null> {
     const rows = await rowsOf(database,
-      `SELECT id, user_id, lesson_id, text AS answer_text, file_url, file_name,
-              submitted_at, updated_at, grade, feedback, status
-       FROM homework_submissions WHERE id = ? LIMIT 1`,
+      `SELECT h.id, CAST(h.user_id AS INTEGER) AS user_id, CAST(h.lesson_id AS INTEGER) AS lesson_id,
+              h.text AS answer_text, h.file_url, h.file_name,
+              h.submitted_at, h.updated_at, h.grade, h.feedback, h.status
+       FROM homework_submissions h
+       JOIN users owner ON owner.id = h.user_id
+       JOIN lessons lesson ON lesson.id = h.lesson_id
+       WHERE h.id = ? LIMIT 1`,
       [submissionId]);
     return rows[0] ? homeworkFromRow(rows[0]) : null;
   },
 
   async listHomeworkForUser(userId: number): Promise<readonly LegacyHomeworkSubmission[]> {
     const rows = await rowsOf(database,
-      `SELECT id, user_id, lesson_id, text AS answer_text, file_url, file_name,
-              submitted_at, updated_at, grade, feedback, status
-       FROM homework_submissions WHERE user_id = ? ORDER BY submitted_at DESC, id DESC`,
+      `SELECT h.id, CAST(h.user_id AS INTEGER) AS user_id, CAST(h.lesson_id AS INTEGER) AS lesson_id,
+              h.text AS answer_text, h.file_url, h.file_name,
+              h.submitted_at, h.updated_at, h.grade, h.feedback, h.status
+       FROM homework_submissions h
+       JOIN users owner ON owner.id = h.user_id
+       JOIN lessons lesson ON lesson.id = h.lesson_id
+       WHERE h.user_id = ? ORDER BY h.submitted_at DESC, h.id DESC`,
       [userId]);
     return rows.map(homeworkFromRow);
   },
 
   async listHomeworkForTeacher(status?: 'pending' | 'graded'): Promise<readonly LegacyHomeworkSubmission[]> {
-    const filter = status === undefined ? '' : " WHERE CASE WHEN status = 'graded' OR grade IS NOT NULL THEN 'graded' ELSE 'pending' END = ?";
+    const filter = status === undefined ? '' : " WHERE CASE WHEN h.status = 'graded' OR h.grade IS NOT NULL THEN 'graded' ELSE 'pending' END = ?";
     const args: InArgs = status === undefined ? [] : [status];
     const rows = await rowsOf(database,
-      `SELECT id, user_id, lesson_id, text AS answer_text, file_url, file_name,
-              submitted_at, updated_at, grade, feedback, status
-       FROM homework_submissions${filter} ORDER BY submitted_at DESC, id DESC`,
+      `SELECT h.id, CAST(h.user_id AS INTEGER) AS user_id, CAST(h.lesson_id AS INTEGER) AS lesson_id,
+              h.text AS answer_text, h.file_url, h.file_name,
+              h.submitted_at, h.updated_at, h.grade, h.feedback, h.status
+       FROM homework_submissions h
+       JOIN users owner ON owner.id = h.user_id
+       JOIN lessons lesson ON lesson.id = h.lesson_id${filter}
+       ORDER BY h.submitted_at DESC, h.id DESC`,
       args);
     return rows.map(homeworkFromRow);
   },
