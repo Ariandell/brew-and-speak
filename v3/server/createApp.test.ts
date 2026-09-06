@@ -160,6 +160,13 @@ test('read-only student flow authenticates and reads path and lesson', async () 
     const studentHomework = await fetch(`${baseUrl}/api/v2/me/homework`, { headers });
     assert.equal(studentHomework.status, 200);
     assert.equal((await studentHomework.json()).items[0].status, 'graded');
+
+    const chat = await fetch(`${baseUrl}/api/v2/me/chat`, { headers });
+    assert.equal(chat.status, 200);
+    assert.deepEqual((await chat.json()).items, []);
+    const photos = await fetch(`${baseUrl}/api/v2/me/photo-messages`, { headers });
+    assert.equal(photos.status, 200);
+    assert.deepEqual((await photos.json()).items, []);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
@@ -215,6 +222,13 @@ test('teacher can read the workspace while student is denied', async () => {
     const teacherHomeworkDetails = await fetch(`http://127.0.0.1:${teacherAddress.port}/api/v2/teacher/homework/900`, { headers });
     assert.equal(teacherHomeworkDetails.status, 200);
     assert.equal((await teacherHomeworkDetails.json()).answerHtml, '<p>Answer </p>');
+
+    const conversations = await fetch(`http://127.0.0.1:${teacherAddress.port}/api/v2/teacher/chat/conversations`, { headers });
+    assert.equal(conversations.status, 200);
+    assert.deepEqual((await conversations.json()).items, []);
+    const photos = await fetch(`http://127.0.0.1:${teacherAddress.port}/api/v2/teacher/photo-messages`, { headers });
+    assert.equal(photos.status, 200);
+    assert.deepEqual((await photos.json()).items, []);
   } finally {
     await Promise.all([
       new Promise<void>((resolve, reject) => teacherServer.close((error) => error ? reject(error) : resolve())),

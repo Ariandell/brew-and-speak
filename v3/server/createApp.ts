@@ -2,6 +2,7 @@ import express, { type Express } from 'express';
 import { randomUUID } from 'node:crypto';
 import {
   courseListResponseSchema,
+  chatResponseSchema,
   coursePathResponseSchema,
   dictionaryResponseSchema,
   homeworkListResponseSchema,
@@ -10,6 +11,7 @@ import {
   meCourseResponseSchema,
   lessonResponseSchema,
   meResponseSchema,
+  photoMessagesResponseSchema,
   teacherStatisticsResponseSchema,
   studySessionResponseSchema,
   teacherCoursesResponseSchema,
@@ -17,6 +19,7 @@ import {
   teacherStudentDetailsResponseSchema,
   teacherStudentsResponseSchema,
 } from '../src/api/contracts.js';
+import { teacherConversationsResponseSchema } from '../src/api/productWriteContracts.js';
 import { createLegacyReadRepositories } from './modules/legacy/repositories.js';
 import { requireTelegramAuth } from './infrastructure/telegram/authMiddleware.js';
 import {
@@ -25,6 +28,12 @@ import {
 } from './infrastructure/db/readOnlySql.js';
 import { normalizeLessonBlocks, sanitizeRichText } from './modules/lessons/normalizeBlock.js';
 import { deriveCoursePath } from './modules/progress/coursePath.js';
+import {
+  listLegacyConversations,
+  listLegacyMessages,
+  listLegacyPhotos,
+  listLegacyTeacherPhotos,
+} from './modules/communication/effectiveCommunication.js';
 
 export type AppDependencies = {
   database?: ReadOnlyDatabase | null;
@@ -871,6 +880,71 @@ export const createApp = (dependencies: AppDependencies = {}): Express => {
       contentRevision: `legacy-${lesson.id}`,
       blocks: normalizeLessonBlocks(lesson.blocks),
     }));
+  });
+
+  const legacyCommunicationAuth = (request: express.Request, response: express.Response, next: express.NextFunction) => {
+    if (!botToken) {
+      response.status(503).json({ code: 'INTERNAL', message: 'Telegram authentication is not configured', requestId: randomUUID() });
+      return;
+    }
+    requireTelegramAuth({ botToken })(request, response, next);
+  };
+  const legacyCommunicationContext = async (response: express.Response) => {
+    if (!database) return null;
+    const repositories = createLegacyReadRepositories(database);
+    const user = await repositories.getUserByTelegramId(response.locals.telegram.telegramId);
+    return { readDatabase: database, repositories, user };
+  };
+
+  app.get('/api/v2/me/chat', legacyCommunicationAuth, async (_request, response) => {
+    const context = await legacyCommunicationContext(response);
+    if (!context) return response.status(503).json({ code: 'INTERNAL', message: 'Read-only database is not configured', requestId: randomUUID() });
+    const { readDatabase, repositories, user } = context;
+    if (!user) return response.status(404).json({ code: 'NOT_FOUND', message: 'Користувача не знайдено', requestId: randomUUID() });
+    if (user.isBlocked) return response.status(403).json({ code: 'BLOCKED', message: 'Доступ заблоковано', requestId: randomUUID() });
+    if (user.role !== 'student') return response.status(403).json({ code: 'FORBIDDEN', message: 'Student chat недоступний викладачці', requestId: randomUUID() });
+    const teacher = await repositories.getTeacher();
+    if (!teacher) return response.status(404).json({ code: 'NOT_FOUND', message: 'Викладачку не знайдено', requestId: randomUUID() });
+    response.json(chatResponseSchema.parse({ items: await listLegacyMessages(readDatabase, { userId: user.id, otherUserId: teacher.id }) }));
+  });
+
+  app.get('/api/v2/me/photo-messages', legacyCommunicationAuth, async (_request, response) => {
+    const context = await legacyCommunicationContext(response);
+    if (!context) return response.status(503).json({ code: 'INTERNAL', message: 'Read-only database is not configured', requestId: randomUUID() });
+    const { readDatabase, user } = context;
+    if (!user) return response.status(404).json({ code: 'NOT_FOUND', message: 'Користувача не знайдено', requestId: randomUUID() });
+    if (user.isBlocked) return response.status(403).json({ code: 'BLOCKED', message: 'Доступ заблоковано', requestId: randomUUID() });
+    response.json(photoMessagesResponseSchema.parse({ items: await listLegacyPhotos(readDatabase, { userId: user.id, now: new Date().toISOString() }) }));
+  });
+
+  app.get('/api/v2/teacher/chat/conversations', legacyCommunicationAuth, async (_request, response) => {
+    const context = await legacyCommunicationContext(response);
+    if (!context) return response.status(503).json({ code: 'INTERNAL', message: 'Read-only database is not configured', requestId: randomUUID() });
+    const { readDatabase, repositories, user } = context;
+    if (!user || user.role !== 'teacher' || user.isBlocked) return response.status(403).json({ code: 'FORBIDDEN', message: 'Недостатньо прав викладачки', requestId: randomUUID() });
+    const students = await repositories.listStudents();
+    const items = await listLegacyConversations(readDatabase, user.id, students.map(student => student.id));
+    response.json(teacherConversationsResponseSchema.parse({ items }));
+  });
+
+  app.get('/api/v2/teacher/chat/conversations/:studentId', legacyCommunicationAuth, async (request, response) => {
+    const studentId = Number(request.params.studentId);
+    if (!Number.isSafeInteger(studentId) || studentId <= 0) return response.status(400).json({ code: 'VALIDATION_FAILED', message: 'Некоректний studentId', requestId: randomUUID() });
+    const context = await legacyCommunicationContext(response);
+    if (!context) return response.status(503).json({ code: 'INTERNAL', message: 'Read-only database is not configured', requestId: randomUUID() });
+    const { readDatabase, repositories, user } = context;
+    if (!user || user.role !== 'teacher' || user.isBlocked) return response.status(403).json({ code: 'FORBIDDEN', message: 'Недостатньо прав викладачки', requestId: randomUUID() });
+    const student = await repositories.getUserById(studentId);
+    if (!student || student.role !== 'student') return response.status(404).json({ code: 'NOT_FOUND', message: 'Учня не знайдено', requestId: randomUUID() });
+    response.json(chatResponseSchema.parse({ items: await listLegacyMessages(readDatabase, { userId: user.id, otherUserId: student.id }) }));
+  });
+
+  app.get('/api/v2/teacher/photo-messages', legacyCommunicationAuth, async (_request, response) => {
+    const context = await legacyCommunicationContext(response);
+    if (!context) return response.status(503).json({ code: 'INTERNAL', message: 'Read-only database is not configured', requestId: randomUUID() });
+    const { readDatabase, user } = context;
+    if (!user || user.role !== 'teacher' || user.isBlocked) return response.status(403).json({ code: 'FORBIDDEN', message: 'Недостатньо прав викладачки', requestId: randomUUID() });
+    response.json(photoMessagesResponseSchema.parse({ items: await listLegacyTeacherPhotos(readDatabase) }));
   });
 
   app.use((_request, response) => {

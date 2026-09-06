@@ -55,21 +55,30 @@ export const listEffectiveMessages = async (
   writeDatabase: SandboxWriteDatabase,
   input: { userId: number; otherUserId?: number },
 ): Promise<readonly SandboxMessage[]> => {
+  const [legacyMessages, v3Messages] = await Promise.all([
+    listLegacyMessages(readDatabase, input),
+    listSandboxMessages(writeDatabase, input),
+  ]);
+  return [...legacyMessages, ...v3Messages.map(normalizeV3Message)]
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.messageId.localeCompare(right.messageId));
+};
+
+export const listLegacyMessages = async (
+  readDatabase: ReadOnlyDatabase,
+  input: { userId: number; otherUserId?: number },
+): Promise<readonly SandboxMessage[]> => {
   const args: number[] = [input.userId, input.userId];
   let scope = '(sender_id = ? OR receiver_id = ?)';
   if (input.otherUserId !== undefined) {
     scope = '((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))';
     args.splice(0, args.length, input.userId, input.otherUserId, input.otherUserId, input.userId);
   }
-  const [legacyResult, v3Messages] = await Promise.all([
-    readDatabase.execute({
-      sql: `SELECT id, sender_id, receiver_id, text, created_at, is_read
-        FROM messages WHERE ${scope} ORDER BY created_at, id`,
-      args,
-    }),
-    listSandboxMessages(writeDatabase, input),
-  ]);
-  const legacyMessages = legacyResult.rows.map((raw): SandboxMessage => {
+  const legacyResult = await readDatabase.execute({
+    sql: `SELECT id, sender_id, receiver_id, text, created_at, is_read
+      FROM messages WHERE ${scope} ORDER BY created_at, id`,
+    args,
+  });
+  return legacyResult.rows.map((raw): SandboxMessage => {
     const row = raw as unknown as Record<string, unknown>;
     const createdAt = canonicalCommunicationDate(row.created_at);
     const isRead = Number(row.is_read);
@@ -84,8 +93,25 @@ export const listEffectiveMessages = async (
       readAt: isRead === 1 ? createdAt : null,
     };
   });
-  return [...legacyMessages, ...v3Messages.map(normalizeV3Message)]
-    .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.messageId.localeCompare(right.messageId));
+};
+
+export const listLegacyConversations = async (
+  readDatabase: ReadOnlyDatabase,
+  teacherUserId: number,
+  studentUserIds: readonly number[],
+) => {
+  const conversations = await Promise.all(studentUserIds.map(async (studentUserId) => {
+    const messages = await listLegacyMessages(readDatabase, { userId: teacherUserId, otherUserId: studentUserId });
+    return {
+      studentUserId,
+      lastMessage: messages[messages.length - 1] ?? null,
+      unreadCount: messages.filter((message) => message.recipientUserId === teacherUserId && message.readAt === null).length,
+    };
+  }));
+  return conversations
+    .filter((conversation) => conversation.lastMessage !== null)
+    .sort((left, right) => (right.lastMessage?.createdAt ?? '').localeCompare(left.lastMessage?.createdAt ?? '')
+      || left.studentUserId - right.studentUserId);
 };
 
 export const listEffectiveConversations = async (
@@ -141,17 +167,27 @@ export const listEffectivePhotos = async (
   input: { userId: number; now: string },
 ): Promise<readonly SandboxPhotoMessage[]> => {
   const now = canonicalCommunicationDate(input.now);
-  const [legacyResult, v3Photos] = await Promise.all([
-    readDatabase.execute({
-      sql: `SELECT photos.id, photos.image_url, photos.caption, photos.scheduled_at, views.viewed_at
-        FROM photo_messages photos
-        LEFT JOIN photo_message_views views ON views.message_id = photos.id AND views.user_id = ?
-        ORDER BY photos.scheduled_at, photos.id`,
-      args: [input.userId],
-    }),
+  const [legacyPhotos, v3Photos] = await Promise.all([
+    listLegacyPhotos(readDatabase, input),
     listAvailableSandboxPhotos(writeDatabase, { userId: input.userId, now }),
   ]);
-  const legacyPhotos = legacyResult.rows.map((raw): SandboxPhotoMessage => {
+  return [...legacyPhotos, ...v3Photos.map(normalizeV3Photo)]
+    .sort((left, right) => left.scheduledAt.localeCompare(right.scheduledAt) || left.photoId.localeCompare(right.photoId));
+};
+
+export const listLegacyPhotos = async (
+  readDatabase: ReadOnlyDatabase,
+  input: { userId: number; now: string },
+): Promise<readonly SandboxPhotoMessage[]> => {
+  const now = canonicalCommunicationDate(input.now);
+  const legacyResult = await readDatabase.execute({
+    sql: `SELECT photos.id, photos.image_url, photos.caption, photos.scheduled_at, views.viewed_at
+      FROM photo_messages photos
+      LEFT JOIN photo_message_views views ON views.message_id = photos.id AND views.user_id = ?
+      ORDER BY photos.scheduled_at, photos.id`,
+    args: [input.userId],
+  });
+  return legacyResult.rows.map((raw): SandboxPhotoMessage => {
     const row = raw as unknown as Record<string, unknown>;
     return {
       photoId: legacyPhotoId(positiveInteger(row.id, 'id')),
@@ -161,25 +197,31 @@ export const listEffectivePhotos = async (
       viewedAt: row.viewed_at === null || row.viewed_at === undefined ? null : canonicalCommunicationDate(row.viewed_at),
     };
   }).filter((photo) => photo.scheduledAt <= now);
-  return [...legacyPhotos, ...v3Photos.map(normalizeV3Photo)]
-    .sort((left, right) => left.scheduledAt.localeCompare(right.scheduledAt) || left.photoId.localeCompare(right.photoId));
 };
 
 export const listEffectiveTeacherPhotos = async (
   readDatabase: ReadOnlyDatabase,
   writeDatabase: SandboxWriteDatabase,
 ): Promise<readonly SandboxPhotoMessage[]> => {
-  const [legacyResult, v3Photos] = await Promise.all([
-    readDatabase.execute('SELECT id, image_url, caption, scheduled_at FROM photo_messages ORDER BY scheduled_at DESC, id DESC'),
+  const [legacy, v3Photos] = await Promise.all([
+    listLegacyTeacherPhotos(readDatabase),
     listAllSandboxPhotos(writeDatabase),
   ]);
-  const legacy = legacyResult.rows.map(raw => {
+  return [...legacy, ...v3Photos.map(normalizeV3Photo)]
+    .sort((left, right) => right.scheduledAt.localeCompare(left.scheduledAt) || right.photoId.localeCompare(left.photoId));
+};
+
+export const listLegacyTeacherPhotos = async (
+  readDatabase: ReadOnlyDatabase,
+): Promise<readonly SandboxPhotoMessage[]> => {
+  const legacyResult = await readDatabase.execute(
+    'SELECT id, image_url, caption, scheduled_at FROM photo_messages ORDER BY scheduled_at DESC, id DESC',
+  );
+  return legacyResult.rows.map(raw => {
     const row = raw as unknown as Record<string, unknown>;
     return { photoId: legacyPhotoId(positiveInteger(row.id, 'id')), assetId: assetIdFromLegacyUrl(row.image_url),
       caption: typeof row.caption === 'string' ? row.caption : '', scheduledAt: canonicalCommunicationDate(row.scheduled_at), viewedAt: null };
   });
-  return [...legacy, ...v3Photos.map(normalizeV3Photo)]
-    .sort((left, right) => right.scheduledAt.localeCompare(left.scheduledAt) || right.photoId.localeCompare(left.photoId));
 };
 
 export const deleteEffectivePhoto = async (
