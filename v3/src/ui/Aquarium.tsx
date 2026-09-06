@@ -42,7 +42,14 @@ export const Aquarium = ({ look, onMeter, onScene }: Props) => {
         const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         scene.current = createScene(canvas, look, still, MESH_URL);
         onScene?.(scene.current);
+        const restore = () => {
+            scene.current?.destroy();
+            scene.current = createScene(canvas, look, still, MESH_URL);
+            onScene?.(scene.current);
+        };
+        canvas.addEventListener('webglcontextrestored', restore);
         return () => {
+            canvas.removeEventListener('webglcontextrestored', restore);
             onScene?.(null);
             scene.current?.destroy();
             scene.current = null;
@@ -72,7 +79,7 @@ export const Aquarium = ({ look, onMeter, onScene }: Props) => {
         <canvas
             ref={ref}
             aria-hidden
-            className="pointer-events-none absolute inset-0 h-full w-full bg-base"
+            className="pointer-events-none absolute inset-0 z-0 h-full w-full bg-base"
         />
     );
 };

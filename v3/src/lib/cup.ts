@@ -1,4 +1,5 @@
 import { compose, multiply, perspective, type Mat4 } from './mat4';
+import { decodeMesh } from './meshData';
 
 /**
  * The object at the centre of attention, drawn into the same canvas as the
@@ -13,18 +14,21 @@ import { compose, multiply, perspective, type Mat4 } from './mat4';
 const VERT = `
 attribute vec3 aPos;
 attribute vec3 aNormal;
+attribute float aArm;
 
 uniform mat4 uModel;
 uniform mat4 uViewProj;
 
 varying vec3 vNormal;
 varying vec3 vLocal;
+varying float vArm;
 
 void main() {
     /* No non-uniform scaling anywhere, so the model matrix rotates normals
        correctly on its own and the inverse transpose is not needed. */
     vNormal = normalize(mat3(uModel[0].xyz, uModel[1].xyz, uModel[2].xyz) * aNormal);
     vLocal = aPos;
+    vArm = aArm;
     gl_Position = uViewProj * uModel * vec4(aPos, 1.0);
 }
 `;
@@ -40,6 +44,7 @@ uniform vec3 uFaceInk;
 uniform vec3 uShade;
 uniform vec3 uRim;
 uniform float uDepthTint;
+uniform vec3 uBands;
 
 /* The face, as numbers rather than as a picture. Everything is in units of
    half the distance between the eyes, measured off the reference artwork. */
@@ -47,17 +52,20 @@ uniform float uFaceUnit;
 uniform float uFaceY;
 uniform vec2 uEye;        // radii, x and y
 uniform float uEyeSep;    // half the distance between centres
+uniform vec2 uEyeOpen;    // independent left/right openness
 uniform vec4 uMouth;      // vertex height, half width, sag, half thickness
+uniform vec2 uMouthPose;  // horizontal offset and tilt
 
 varying vec3 vNormal;
 varying vec3 vLocal;
+varying float vArm;
 
 /* Read off the model's own silhouette, taken along a narrow strip down the
    front so the arms stay out of it. A median over the whole slice buries the
    sleeve's lip - it is a thin ring, and the wall behind it outvotes it. */
-const float SLEEVE_BOTTOM = -0.63;
-const float SLEEVE_TOP = 0.48;
-const float LID_EDGE = 0.67;
+#define SLEEVE_BOTTOM uBands.x
+#define SLEEVE_TOP uBands.y
+#define LID_EDGE uBands.z
 
 /* Roughly where the sleeve's wall sits. Using one radius rather than the true
    one per point keeps the face the same size top to bottom, which a tapering
@@ -74,6 +82,9 @@ void main() {
     float sleeve = smoothstep(SLEEVE_BOTTOM - 0.025, SLEEVE_BOTTOM + 0.025, vLocal.y)
                  * (1.0 - smoothstep(SLEEVE_TOP - 0.025, SLEEVE_TOP + 0.025, vLocal.y));
     float lid = smoothstep(LID_EDGE - 0.025, LID_EDGE + 0.025, vLocal.y);
+    float faceSurface = sleeve * (1.0 - vArm);
+    sleeve = max(sleeve, vArm);
+    lid *= 1.0 - vArm;
 
     /* The reference sleeve is bluer at the top and pinker at the bottom. Most
        of what looks like a gradient there is the light, which this already
@@ -95,8 +106,11 @@ void main() {
        real distance round the cylinder, not an angle. */
     vec2 f = vec2(atan(vLocal.x, vLocal.z) * SLEEVE_RADIUS, vLocal.y - uFaceY) / uFaceUnit;
 
-    vec2 eye = vec2(abs(f.x) - uEyeSep, f.y) / uEye;
-    float ink = 1.0 - smoothstep(1.0 - EDGE / uEye.x, 1.0 + EDGE / uEye.x, length(eye));
+    vec2 leftEye = vec2(f.x + uEyeSep, f.y) / vec2(uEye.x, uEye.y * uEyeOpen.x);
+    vec2 rightEye = vec2(f.x - uEyeSep, f.y) / vec2(uEye.x, uEye.y * uEyeOpen.y);
+    float leftInk = 1.0 - smoothstep(1.0 - EDGE / uEye.x, 1.0 + EDGE / uEye.x, length(leftEye));
+    float rightInk = 1.0 - smoothstep(1.0 - EDGE / uEye.x, 1.0 + EDGE / uEye.x, length(rightEye));
+    float ink = max(leftInk, rightInk);
 
     /* The mouth is described by how deeply it sags rather than by a radius and
        a flag for which way up it is. A flag cannot be interpolated - halfway
@@ -120,7 +134,8 @@ void main() {
     vec2 centre = vec2(0.0, vertexY + bend * R);
     float halfSpan = asin(clamp(halfWidth / R, 0.0, 1.0));
 
-    vec2 d = f - centre;
+    vec2 mouthPoint = vec2(f.x - uMouthPose.x, f.y - uMouthPose.y * f.x);
+    vec2 d = mouthPoint - centre;
     float along = atan(d.x, -bend * d.y);
     float toStroke;
     if (abs(along) <= halfSpan) {
@@ -130,14 +145,14 @@ void main() {
            stroke is its endpoint. Without this the mouth finishes in a
            square-cut edge that reads as a mistake. */
         vec2 cap = centre + R * vec2(sign(d.x) * sin(halfSpan), -bend * cos(halfSpan));
-        toStroke = length(f - cap);
+        toStroke = length(mouthPoint - cap);
     }
     ink = max(ink, 1.0 - smoothstep(thick - EDGE, thick + EDGE, toStroke));
 
     /* Fading by how far round the cylinder the surface has turned stops the
        face smearing down the sides, which is what any projection does at
        grazing angles. */
-    albedo = mix(albedo, uFaceInk, ink * smoothstep(0.20, 0.55, front) * sleeve);
+    albedo = mix(albedo, uFaceInk, ink * smoothstep(0.20, 0.55, front) * faceSurface);
 
     /* Wrapped diffuse rather than a plain dot product: light bleeds a little
        past the terminator, which is what soft matte plastic does and what the
@@ -184,9 +199,13 @@ export interface FaceShape {
     centreY: number;
     eyeRadius: [number, number];
     eyeSeparation: number;
+    /** Independent vertical openness enables winks and confident narrowed eyes. */
+    eyeOpen: [number, number];
     /** Vertex height, half width, sag, half thickness. Sag is signed: positive
      *  curves up into a smile, negative down into a frown, zero is a line. */
     mouth: [number, number, number, number];
+    /** Horizontal mouth offset and tilt. */
+    mouthPose: [number, number];
 }
 
 /**
@@ -203,9 +222,11 @@ export interface CupPose {
     /** Added to the idle drift, so the cup turns without stopping breathing. */
     lookYaw: number;
     lookPitch: number;
+    /** Screen-plane rotation used by authored navigation gestures. */
+    roll: number;
 }
 
-export const RESTING: CupPose = { x: 0, y: 0, scale: 1, lookYaw: 0, lookPitch: 0 };
+export const RESTING: CupPose = { x: 0, y: 0, scale: 1, lookYaw: 0, lookPitch: 0, roll: 0 };
 
 export const HAPPY: FaceShape = {
     /* Sized from the reference rather than by eye: there the face is 0.417 of
@@ -216,9 +237,11 @@ export const HAPPY: FaceShape = {
     centreY: 0.014,
     eyeRadius: [0.160, 0.165],
     eyeSeparation: 0.5,
+    eyeOpen: [1, 1],
     /* The same curve the reference has, restated as sag: its arc of radius
        0.465 over a half-span of 0.879 is a chord 0.358 wide sagging 0.169. */
     mouth: [-0.5, 0.358, 0.169, 0.03],
+    mouthPose: [0, 0],
 };
 
 /** Eyes wide, mouth a deep small round - the shape of having just noticed. */
@@ -235,7 +258,34 @@ export const SAD: FaceShape = {
     mouth: [-0.28, 0.34, -0.13, 0.028],
 };
 
-export const MOODS = { happy: HAPPY, surprised: SURPRISED, sad: SAD };
+export const SMIRK: FaceShape = {
+    ...HAPPY,
+    eyeOpen: [0.72, 1],
+    mouth: [-0.47, 0.30, 0.085, 0.028],
+    mouthPose: [0.075, 0.16],
+};
+
+export const COOL: FaceShape = {
+    ...HAPPY,
+    eyeRadius: [0.18, 0.14],
+    eyeOpen: [0.42, 0.42],
+    mouth: [-0.47, 0.34, 0.065, 0.027],
+};
+
+export const WINK: FaceShape = {
+    ...HAPPY,
+    eyeOpen: [0.22, 1],
+    mouth: [-0.49, 0.37, 0.145, 0.03],
+    mouthPose: [0.025, 0.035],
+};
+
+export const PROUD: FaceShape = {
+    ...HAPPY,
+    eyeOpen: [0.64, 0.64],
+    mouth: [-0.46, 0.285, 0.05, 0.026],
+};
+
+export const MOODS = { happy: HAPPY, surprised: SURPRISED, smirk: SMIRK, cool: COOL, wink: WINK, proud: PROUD, sad: SAD };
 export type Mood = keyof typeof MOODS;
 
 export interface CupColours {
@@ -254,6 +304,8 @@ export interface CupColours {
 export interface CupMesh {
     position: WebGLBuffer;
     normal: WebGLBuffer;
+    arm: WebGLBuffer;
+    calibration: number[];
     index: WebGLBuffer;
     indexCount: number;
 }
@@ -275,23 +327,10 @@ export const loadCup = async (gl: WebGLRenderingContext, url: string): Promise<C
         return null;
     }
 
-    const view = new DataView(buffer);
-    const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
-    if (magic !== 'MSH1') {
-        console.error('Не той формат моделі:', magic);
-        return null;
-    }
-
-    const vertexCount = view.getUint32(4, true);
-    const indexCount = view.getUint32(8, true);
-
-    let at = 16;
-    const positions = new Int16Array(buffer, at, vertexCount * 3);
-    at += vertexCount * 6;
-    const normals = new Int8Array(buffer, at, vertexCount * 3);
-    at += vertexCount * 3;
-    at += (4 - ((vertexCount * 3) % 4)) % 4;
-    const indices = new Uint16Array(buffer, at, indexCount);
+    let data: ReturnType<typeof decodeMesh>;
+    try { data = decodeMesh(buffer); }
+    catch (error) { console.error('Некоректна модель:', error); return null; }
+    const { positions, normals, arms, indices, calibration } = data;
 
     const upload = (data: ArrayBufferView, target: number) => {
         const handle = gl.createBuffer()!;
@@ -303,12 +342,15 @@ export const loadCup = async (gl: WebGLRenderingContext, url: string): Promise<C
     return {
         position: upload(positions, gl.ARRAY_BUFFER),
         normal: upload(normals, gl.ARRAY_BUFFER),
+        arm: upload(arms, gl.ARRAY_BUFFER),
+        calibration,
         index: upload(indices, gl.ELEMENT_ARRAY_BUFFER),
-        indexCount,
+        indexCount: indices.length,
     };
 };
 
 export interface CupPass {
+    dispose(): void;
     draw(
         mesh: CupMesh,
         face: FaceShape,
@@ -338,6 +380,7 @@ export const createCupPass = (
 
     const aPos = gl.getAttribLocation(program, 'aPos');
     const aNormal = gl.getAttribLocation(program, 'aNormal');
+    const aArm = gl.getAttribLocation(program, 'aArm');
     const at = (name: string) => gl.getUniformLocation(program, name);
     const u = {
         model: at('uModel'),
@@ -350,11 +393,14 @@ export const createCupPass = (
         shade: at('uShade'),
         rim: at('uRim'),
         depthTint: at('uDepthTint'),
+        bands: at('uBands'),
         faceUnit: at('uFaceUnit'),
         faceY: at('uFaceY'),
         eye: at('uEye'),
         eyeSep: at('uEyeSep'),
+        eyeOpen: at('uEyeOpen'),
         mouth: at('uMouth'),
+        mouthPose: at('uMouthPose'),
     };
 
     let projection: Mat4 | null = null;
@@ -368,7 +414,9 @@ export const createCupPass = (
     const scale = FILL_HEIGHT * visibleHalfHeight;
 
     return {
+        dispose() { gl.deleteProgram(program); gl.deleteShader(vert); gl.deleteShader(frag); },
         draw(mesh, face, time, aspect, colours, pose) {
+            if (pose.scale < .001) return;
             gl.useProgram(program);
             gl.enable(gl.DEPTH_TEST);
             gl.enable(gl.CULL_FACE);
@@ -404,6 +452,7 @@ export const createCupPass = (
                     yaw + pose.lookYaw,
                     pitch + pose.lookPitch,
                     size,
+                    pose.roll,
                 ),
             );
             gl.uniform3fv(u.lid, colours.lid);
@@ -414,12 +463,15 @@ export const createCupPass = (
             gl.uniform3fv(u.shade, colours.shade);
             gl.uniform3fv(u.rim, colours.rim);
             gl.uniform1f(u.depthTint, colours.depthTint);
+            gl.uniform3fv(u.bands, mesh.calibration.slice(0, 3));
 
-            gl.uniform1f(u.faceUnit, face.unit);
-            gl.uniform1f(u.faceY, face.centreY);
+            gl.uniform1f(u.faceUnit, face.unit * mesh.calibration[3]);
+            gl.uniform1f(u.faceY, face.centreY * mesh.calibration[3] + mesh.calibration[4]);
             gl.uniform2fv(u.eye, face.eyeRadius);
             gl.uniform1f(u.eyeSep, face.eyeSeparation);
+            gl.uniform2fv(u.eyeOpen, face.eyeOpen);
             gl.uniform4fv(u.mouth, face.mouth);
+            gl.uniform2fv(u.mouthPose, face.mouthPose);
 
             gl.bindBuffer(gl.ARRAY_BUFFER, mesh.position);
             gl.enableVertexAttribArray(aPos);
@@ -428,12 +480,16 @@ export const createCupPass = (
             gl.bindBuffer(gl.ARRAY_BUFFER, mesh.normal);
             gl.enableVertexAttribArray(aNormal);
             gl.vertexAttribPointer(aNormal, 3, gl.BYTE, true, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.arm);
+            gl.enableVertexAttribArray(aArm);
+            gl.vertexAttribPointer(aArm, 1, gl.UNSIGNED_BYTE, true, 0, 0);
 
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.index);
             gl.drawElements(gl.TRIANGLES, mesh.indexCount, gl.UNSIGNED_SHORT, 0);
 
             gl.disableVertexAttribArray(aPos);
             gl.disableVertexAttribArray(aNormal);
+            gl.disableVertexAttribArray(aArm);
             gl.disable(gl.DEPTH_TEST);
             gl.disable(gl.CULL_FACE);
         },

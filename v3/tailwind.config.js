@@ -56,6 +56,10 @@ export default {
         move: '420ms',
         scene: '620ms',
       },
+      boxShadow: {
+        card: '0 2px 4px rgb(15 27 51 / 0.04), 0 14px 34px rgb(15 27 51 / 0.09)',
+        panel: '0 2px 5px rgb(15 27 51 / 0.05), 0 16px 36px rgb(15 27 51 / 0.12)',
+      },
     },
   },
   plugins: [],

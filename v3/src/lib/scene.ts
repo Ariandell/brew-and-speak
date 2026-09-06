@@ -247,6 +247,7 @@ export interface SceneLook {
 }
 
 export interface Scene {
+    setModel(url: string | null): void;
     setLook(look: SceneLook): void;
     /** Where the cup should be. It swims there rather than jumping. */
     setPose(pose: Partial<CupPose>): void;
@@ -458,13 +459,33 @@ export const createScene = (
 
     const cupPass = createCupPass(gl, (type, source) => compile(gl, type, source));
     let cupMesh: CupMesh | null = null;
-    if (meshUrl) {
-        // The water must not wait on it. If the model never arrives, or arrives
-        // broken, the scene is simply the water - which is a complete thing.
-        loadCup(gl, meshUrl).then(mesh => {
+    const meshes = new Map<string, Promise<CupMesh | null>>();
+    let modelRequest = 0;
+    let modelTarget: string | null = null;
+    const disposeMesh = (mesh: CupMesh) => {
+        [mesh.position, mesh.normal, mesh.arm, mesh.index].forEach(buffer => gl.deleteBuffer(buffer));
+    };
+    const setModel = (url: string | null) => {
+        const target = url ?? meshUrl;
+        if (!target) return;
+        if (target === modelTarget && cupMesh) return;
+        modelTarget = target;
+        const request = ++modelRequest;
+        /* Never show the previous screen's gesture while the requested pose is
+           loading. That made a sad result briefly inherit `wave`/`celebrate`.
+           A short empty slot is preferable to a semantically wrong mascot. */
+        cupMesh = null;
+        let pending = meshes.get(target);
+        if (!pending) {
+            pending = loadCup(gl, target);
+            meshes.set(target, pending);
+        }
+        pending.then(mesh => {
+            if (!alive || request !== modelRequest || !mesh) return;
             cupMesh = mesh;
+            if (still) draw(0);
         });
-    }
+    };
 
     let current = look;
 
@@ -482,7 +503,9 @@ export const createScene = (
     const clone = (shape: FaceShape): FaceShape => ({
         ...shape,
         eyeRadius: [...shape.eyeRadius],
+        eyeOpen: [...shape.eyeOpen],
         mouth: [...shape.mouth],
+        mouthPose: [...shape.mouthPose],
     });
     const blended = clone(HAPPY);
     const face = clone(HAPPY);
@@ -530,7 +553,10 @@ export const createScene = (
        number that changes only when the window does. */
     let sizeDirty = true;
     const observer =
-        typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => (sizeDirty = true));
+        typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+            sizeDirty = true;
+            if (still && alive) { resize(); draw(0); }
+        });
     observer?.observe(canvas);
 
     const resize = () => {
@@ -588,7 +614,11 @@ export const createScene = (
         gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
 
+    let previousDraw: number | null = null;
     const draw = (time: number) => {
+        const delta = previousDraw === null ? 1000 / 60 : Math.max(0, Math.min(100, time - previousDraw));
+        previousDraw = time;
+        const damping = (rate: number) => still ? 1 : 1 - Math.pow(1 - rate, delta / (1000 / 60));
         const seconds = time / 1000;
 
         if (flags.nowater) {
@@ -628,17 +658,18 @@ export const createScene = (
             /* Chase the target. A fixed fraction per frame rather than a
                duration: interrupting it mid-way needs no special case, which a
                timed animation always does. */
-            const follow = (from: number, to: number, rate: number) => from + (to - from) * rate;
+            const follow = (from: number, to: number, rate: number) => from + (to - from) * damping(rate);
             actual.x = follow(actual.x, wanted.x, 0.10);
             actual.y = follow(actual.y, wanted.y, 0.10);
             actual.scale = follow(actual.scale, wanted.scale, 0.10);
             actual.lookYaw = follow(actual.lookYaw, wanted.lookYaw, 0.12);
             actual.lookPitch = follow(actual.lookPitch, wanted.lookPitch, 0.12);
+            actual.roll = follow(actual.roll, wanted.roll, 0.1);
 
             /* Attention fades. Without this the cup stares at the last thing
                touched forever, which stops reading as noticing. */
-            wanted.lookYaw *= 0.986;
-            wanted.lookPitch *= 0.986;
+            wanted.lookYaw *= 1 - damping(.014);
+            wanted.lookPitch *= 1 - damping(.014);
 
             /* The mood, always on its way somewhere. Nothing here switches:
                every number slides, and because the mouth is described by a
@@ -648,12 +679,16 @@ export const createScene = (
                 mood = HAPPY;
                 revertAt = -1;
             }
-            const toward = 0.13;
+            const toward = damping(.13);
             blended.unit += (mood.unit - blended.unit) * toward;
             blended.centreY += (mood.centreY - blended.centreY) * toward;
             blended.eyeSeparation += (mood.eyeSeparation - blended.eyeSeparation) * toward;
             blended.eyeRadius[0] += (mood.eyeRadius[0] - blended.eyeRadius[0]) * toward;
             blended.eyeRadius[1] += (mood.eyeRadius[1] - blended.eyeRadius[1]) * toward;
+            for (let i = 0; i < 2; i++) {
+                blended.eyeOpen[i] += (mood.eyeOpen[i] - blended.eyeOpen[i]) * toward;
+                blended.mouthPose[i] += (mood.mouthPose[i] - blended.mouthPose[i]) * toward;
+            }
             for (let i = 0; i < 4; i++) {
                 blended.mouth[i] += (mood.mouth[i] - blended.mouth[i]) * toward;
             }
@@ -662,6 +697,10 @@ export const createScene = (
             face.centreY = blended.centreY;
             face.eyeSeparation = blended.eyeSeparation;
             face.eyeRadius[0] = blended.eyeRadius[0];
+            face.eyeOpen[0] = blended.eyeOpen[0];
+            face.eyeOpen[1] = blended.eyeOpen[1];
+            face.mouthPose[0] = blended.mouthPose[0];
+            face.mouthPose[1] = blended.mouthPose[1];
             for (let i = 0; i < 4; i++) face.mouth[i] = blended.mouth[i];
 
             /* Eyes. A cosine over the blink gives a close and an open in one
@@ -774,10 +813,12 @@ export const createScene = (
     canvas.addEventListener('webglcontextlost', onLost);
 
     resize();
+    setModel(null);
     if (still) draw(0);
     else start();
 
     return {
+        setModel,
         setLook(next) {
             current = next;
             if (still) {
@@ -787,6 +828,7 @@ export const createScene = (
         },
         setPose(pose) {
             Object.assign(wanted, pose);
+            if (still) draw(0);
         },
         touch(x, y) {
             const aspect = width / Math.max(height, 1);
@@ -809,6 +851,9 @@ export const createScene = (
         info: () => ({ renderer, width, height }),
         destroy() {
             alive = false;
+            meshes.forEach(pending => { void pending.then(mesh => { if (mesh) disposeMesh(mesh); }); });
+            meshes.clear();
+            cupPass?.dispose();
             stop();
             observer?.disconnect();
             document.removeEventListener('visibilitychange', onVisibility);

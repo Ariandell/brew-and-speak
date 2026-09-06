@@ -1,3 +1,8 @@
 node_modules/
 dist/
 *.tsbuildinfo
+.sandbox/
+playwright-report/
+test-results/
+.tmp-e2e/
+playwright-report-production/

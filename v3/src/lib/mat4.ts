@@ -38,13 +38,15 @@ export const compose = (
     tx: number, ty: number, tz: number,
     yaw: number, pitch: number,
     scale: number,
+    roll = 0,
 ): Mat4 => {
     const cy = Math.cos(yaw), sy = Math.sin(yaw);
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const cr = Math.cos(roll), sr = Math.sin(roll);
 
-    // Ry * Rx
-    const m00 = cy, m01 = sy * sp, m02 = sy * cp;
-    const m10 = 0, m11 = cp, m12 = -sp;
+    // Rz * Ry * Rx. With roll=0 this is byte-for-byte the former Ry * Rx.
+    const m00 = cr * cy, m01 = cr * sy * sp - sr * cp, m02 = cr * sy * cp + sr * sp;
+    const m10 = sr * cy, m11 = sr * sy * sp + cr * cp, m12 = sr * sy * cp - cr * sp;
     const m20 = -sy, m21 = cy * sp, m22 = cy * cp;
 
     return new Float32Array([

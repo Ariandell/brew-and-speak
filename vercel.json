@@ -1,6 +1,6 @@
 {
-    "buildCommand": "npm run build",
-    "outputDirectory": "dist",
+    "buildCommand": "npm --prefix v3 ci && npm --prefix v3 run api:typecheck && npm --prefix v3 run build",
+    "outputDirectory": "v3/dist",
     "framework": null,
     "functions": {
         "api/index.ts": {
@@ -15,6 +15,17 @@
         {
             "source": "/(.*)",
             "destination": "/index.html"
+        }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                { "key": "X-Content-Type-Options", "value": "nosniff" },
+                { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+                { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+                { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'" }
+            ]
         }
     ]
 }

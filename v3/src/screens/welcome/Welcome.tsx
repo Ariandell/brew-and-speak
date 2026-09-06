@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { RegistrationMarks } from '../../ui/RegistrationMarks';
 import { useScene } from '../../ui/SceneProvider';
 
 /** Small type that never stops moving, so the screen is never a still image. */
@@ -45,7 +46,7 @@ export const Welcome = ({ onStart }: Props) => {
     useEffect(() => {
         // Up and slightly off centre, so the wordmark owns the lower left and
         // the letters cross the cup's base rather than clearing it.
-        scene?.setPose({ x: 0.13, y: 0.14, scale: 1.02 });
+        scene?.setPose({ x: 0.13, y: 0.14, scale: 1.02, roll: 0 });
     }, [scene]);
 
     /* Every so often the cup glances at the one thing there is to do. Reacting
@@ -68,16 +69,7 @@ export const Welcome = ({ onStart }: Props) => {
 
     return (
         <div className="relative h-full overflow-hidden">
-            {/* Registration marks. Barely visible, and the screen feels built
-                rather than poured the moment they are there. */}
-            <span className="absolute left-3 top-3 h-3 w-px bg-text/25" />
-            <span className="absolute left-3 top-3 h-px w-3 bg-text/25" />
-            <span className="absolute right-3 top-3 h-3 w-px bg-text/25" />
-            <span className="absolute right-3 top-3 h-px w-3 bg-text/25" />
-            <span className="absolute bottom-3 left-3 h-3 w-px bg-text/25" />
-            <span className="absolute bottom-3 left-3 h-px w-3 bg-text/25" />
-            <span className="absolute bottom-3 right-3 h-3 w-px bg-text/25" />
-            <span className="absolute bottom-3 right-3 h-px w-3 bg-text/25" />
+            <RegistrationMarks />
 
             {/* The crawl, rotated onto the right edge, where it is texture
                 rather than something to read. */}

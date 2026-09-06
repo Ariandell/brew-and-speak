@@ -2,8 +2,11 @@ import { createContext, useContext, useMemo, useRef, type ReactNode } from 'reac
 import { Aquarium, type Reading } from './Aquarium';
 import type { CupPose, Mood } from '../lib/cup';
 import type { Scene, SceneLook } from '../lib/scene';
+import { mascotPoseUrl, type MascotPose } from '../scene/mascotPoses';
 
 interface Handle {
+    placeIn(element: HTMLElement): void;
+    setCharacter(pose: MascotPose): void;
     /** Ask the cup to be somewhere. It swims there; it does not cut. */
     setPose(pose: Partial<CupPose>): void;
     /** Turn the cup's head toward something on screen. */
@@ -36,11 +39,32 @@ export type { Reading };
 
 export const SceneProvider = ({ look, onMeter, children }: Props) => {
     const scene = useRef<Scene | null>(null);
+    const queuedPose = useRef<Partial<CupPose> | null>(null);
+    const queuedCharacter = useRef<MascotPose>('reference');
     const frame = useRef<HTMLDivElement>(null);
 
     const handle = useMemo<Handle>(
         () => ({
-            setPose: pose => scene.current?.setPose(pose),
+            placeIn: element => {
+                const box = frame.current?.getBoundingClientRect();
+                const slot = element.getBoundingClientRect();
+                if (!box || !box.height) return;
+                const visible = slot.bottom > box.top && slot.top < box.bottom;
+                const pose = { x: ((slot.left + slot.width / 2 - box.left) / box.width) * 2 - 1,
+                    y: 1 - ((slot.top + slot.height / 2 - box.top) / box.height) * 2,
+                    scale: visible ? Math.min(slot.height, slot.width) / (box.height * .55) * .82 : 0,
+                    roll: 0, lookYaw: 0, lookPitch: 0 };
+                queuedPose.current = pose;
+                scene.current?.setPose(pose);
+            },
+            setCharacter: pose => {
+                queuedCharacter.current = pose;
+                scene.current?.setModel(mascotPoseUrl(pose));
+            },
+            setPose: pose => {
+                queuedPose.current = { ...queuedPose.current, ...pose };
+                scene.current?.setPose(pose);
+            },
             express: (mood, holdMs) => scene.current?.express(mood, holdMs),
             lookAt: element => {
                 const box = frame.current?.getBoundingClientRect();
@@ -76,6 +100,7 @@ export const SceneProvider = ({ look, onMeter, children }: Props) => {
        On a desktop the same handler fires without a button held, which is the
        cursor-following behaviour for free. */
     const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType !== 'mouse') return;
         const [x, y] = at(event);
         scene.current?.look(x, y);
     };
@@ -92,8 +117,18 @@ export const SceneProvider = ({ look, onMeter, children }: Props) => {
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
             >
-                <Aquarium look={look} onMeter={onMeter} onScene={value => (scene.current = value)} />
-                <SceneContext.Provider value={handle}>{children}</SceneContext.Provider>
+                <Aquarium
+                    look={look}
+                    onMeter={onMeter}
+                    onScene={value => {
+                        scene.current = value;
+                        if (value) value.setModel(mascotPoseUrl(queuedCharacter.current));
+                        if (value && queuedPose.current) value.setPose(queuedPose.current);
+                    }}
+                />
+                <SceneContext.Provider value={handle}>
+                    <div className="relative z-10 h-full">{children}</div>
+                </SceneContext.Provider>
             </div>
         </div>
     );
