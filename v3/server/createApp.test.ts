@@ -62,6 +62,7 @@ const fakeDatabase = (role: 'student' | 'teacher' = 'student'): ReadOnlyDatabase
     }
     if (sql.includes('COUNT(*) AS count FROM user_progress')) return result([{ count: 3 }]);
     if (sql.includes('AVG(score)')) return result([{ average_score: 8.5 }]);
+    if (sql.includes('SELECT completed_at AS activity_at')) return result([{ activity_at: new Date().toISOString() }]);
     if (sql.includes('COUNT(*) AS count FROM homework_submissions')) return result([{ count: 1 }]);
     if (sql.includes('SELECT lesson_blocks.content FROM lesson_blocks')) {
       return result([{ content: JSON.stringify({ assetId: 'asset-1' }) }]);
@@ -124,6 +125,10 @@ test('read-only student flow authenticates and reads path and lesson', async () 
     const me = await fetch(`${baseUrl}/api/v2/me`, { headers });
     assert.equal(me.status, 200);
     assert.equal((await me.json()).role, 'student');
+
+    const streak = await fetch(`${baseUrl}/api/v2/me/streak`, { headers });
+    assert.equal(streak.status, 200);
+    assert.equal((await streak.json()).streakDays, 1);
 
     const path = await fetch(`${baseUrl}/api/v2/me/course/path`, { headers });
     assert.equal(path.status, 200);

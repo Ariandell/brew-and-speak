@@ -253,6 +253,17 @@ export const createLegacyReadRepositories = (database: ReadOnlyDatabase) => ({
     return { studentCount, blockedStudentCount, courseCount, lessonCount, pendingHomeworkCount, completedLessonCount };
   },
 
+  async listActivityTimestamps(user: LegacyUser): Promise<readonly string[]> {
+    const rows = await rowsOf(database,
+      `SELECT completed_at AS activity_at FROM user_progress
+       WHERE user_id = ? AND status = 'completed' AND completed_at IS NOT NULL
+       UNION ALL
+       SELECT last_reviewed_at AS activity_at FROM user_flashcard_progress
+       WHERE CAST(user_id AS TEXT) IN (?, ?) AND last_reviewed_at IS NOT NULL`,
+      [user.id, String(user.id), user.telegramId]);
+    return rows.flatMap(row => typeof row.activity_at === 'string' ? [row.activity_at] : []);
+  },
+
   async getAsset(assetId: string): Promise<LegacyAsset | null> {
     const rows = await rowsOf(database,
       'SELECT id, mime_type, data FROM app_assets WHERE id = ? LIMIT 1',

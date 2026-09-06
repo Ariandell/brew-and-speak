@@ -1,6 +1,7 @@
 import express, { type Express } from 'express';
 import { randomUUID } from 'node:crypto';
 import {
+  activityStreakResponseSchema,
   courseListResponseSchema,
   chatResponseSchema,
   coursePathResponseSchema,
@@ -28,6 +29,7 @@ import {
 } from './infrastructure/db/readOnlySql.js';
 import { normalizeLessonBlocks, sanitizeRichText } from './modules/lessons/normalizeBlock.js';
 import { deriveCoursePath } from './modules/progress/coursePath.js';
+import { calculateActivityStreak } from './modules/progress/streak.js';
 import {
   listLegacyConversations,
   listLegacyMessages,
@@ -679,6 +681,26 @@ export const createApp = (dependencies: AppDependencies = {}): Express => {
       enrollment: { courseId: user.enrolledCourseId },
     });
     response.json(parsed);
+  });
+
+  app.get('/api/v2/me/streak', (request, response, next) => {
+    if (!botToken) {
+      response.status(503).json({ code: 'INTERNAL', message: 'Telegram authentication is not configured', requestId: randomUUID() });
+      return;
+    }
+    requireTelegramAuth({ botToken })(request, response, next);
+  }, async (_request, response) => {
+    if (!database) {
+      response.status(503).json({ code: 'INTERNAL', message: 'Read-only database is not configured', requestId: randomUUID() });
+      return;
+    }
+    const repositories = createLegacyReadRepositories(database);
+    const user = await repositories.getUserByTelegramId(response.locals.telegram.telegramId);
+    if (!user) return response.status(404).json({ code: 'NOT_FOUND', message: 'Користувача не знайдено', requestId: randomUUID() });
+    if (user.isBlocked) return response.status(403).json({ code: 'BLOCKED', message: 'Доступ заблоковано', requestId: randomUUID() });
+    response.json(activityStreakResponseSchema.parse({
+      streakDays: calculateActivityStreak(await repositories.listActivityTimestamps(user)),
+    }));
   });
 
   app.get('/api/v2/me/course/path', (request, response, next) => {
