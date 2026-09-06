@@ -179,6 +179,15 @@ const nullableNumber = (row: LegacyRow, key: string): number | null => (
   typeof row[key] === 'number' && Number.isInteger(row[key]) ? row[key] as number : null
 );
 
+// The legacy teacher UI stored and displayed homework grades on a 0..100
+// scale. V3 uses a single 0..10 contract. Convert only while reading legacy
+// rows; additive V3 grades are already 0..10 and never pass through here.
+const legacyGradeToTenPoint = (row: LegacyRow): number | null => {
+  const grade = nullableNumber(row, 'grade');
+  if (grade === null) return null;
+  return Math.max(0, Math.min(10, Math.round(grade / 10)));
+};
+
 const homeworkFromRow = (row: LegacyRow): LegacyHomeworkSubmission => ({
   id: requiredNumber(row, 'id'),
   userId: requiredNumber(row, 'user_id'),
@@ -188,7 +197,7 @@ const homeworkFromRow = (row: LegacyRow): LegacyHomeworkSubmission => ({
   fileName: nullableString(row, 'file_name'),
   createdAt: stringValue(row, 'submitted_at', new Date(0).toISOString()),
   updatedAt: nullableString(row, 'updated_at'),
-  grade: nullableNumber(row, 'grade'),
+  grade: legacyGradeToTenPoint(row),
   feedback: nullableString(row, 'feedback'),
   status: row.status === 'graded' || row.grade !== null && row.grade !== undefined ? 'graded' : 'pending',
 });
@@ -391,7 +400,7 @@ export const createLegacyReadRepositories = (database: ReadOnlyDatabase) => ({
         completedAt: progress ? nullableString(progress, 'completed_at') : null,
         score: progress ? nullableNumber(progress, 'score') : null,
         homeworkStatus: homework ? nullableString(homework, 'status') : null,
-        homeworkGrade: homework ? nullableNumber(homework, 'grade') : null,
+        homeworkGrade: homework ? legacyGradeToTenPoint(homework) : null,
         hasHomework: homeworkLessonIds.has(lessonId),
       };
     });

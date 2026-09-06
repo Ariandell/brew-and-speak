@@ -36,11 +36,16 @@ test('production composition provisions verified students and exposes canonical 
     `CREATE TABLE app_assets (id TEXT PRIMARY KEY, mime_type TEXT, data TEXT)`,
     { sql: `INSERT INTO users (telegram_id,name,username,role,is_blocked)
       VALUES ('900','Teacher','teacher','teacher',0)`, args: [] },
+    { sql: `INSERT INTO users (telegram_id,name,username,role,is_blocked)
+      VALUES ('777','Legacy Student','legacy_student','student',0)`, args: [] },
     { sql: `INSERT INTO levels (id,title,description,"order") VALUES (2,'A1','First course',1)`, args: [] },
     { sql: `INSERT INTO lessons (id,level_id,title,"order") VALUES (10,2,'Welcome',1)`, args: [] },
     { sql: `INSERT INTO homework_submissions
       (id,user_id,lesson_id,text,submitted_at,status)
       VALUES (99,'demo-user',10,'Orphaned demo answer','2026-01-01T00:00:00.000Z','pending')`, args: [] },
+    { sql: `INSERT INTO homework_submissions
+      (id,user_id,lesson_id,text,submitted_at,status,grade)
+      VALUES (98,2,10,'Legacy graded answer','2026-01-02T00:00:00.000Z','graded',95)`, args: [] },
   ]);
   await applySandboxMigrationPlan(writeDatabase);
   const readDatabase = createReadOnlyDatabase({ url });
@@ -72,7 +77,9 @@ test('production composition provisions verified students and exposes canonical 
     const teacherHeaders = signed(900, 'Teacher');
     const homework = await fetch(`${base}/api/v2/teacher/homework`, { headers: teacherHeaders });
     assert.equal(homework.status, 200);
-    assert.deepEqual((await homework.json()).items, []);
+    const homeworkBody = await homework.json() as { items: Array<{ grade: number | null }> };
+    assert.equal(homeworkBody.items.length, 1);
+    assert.equal(homeworkBody.items[0]?.grade, 10);
     const createdLesson = await fetch(`${base}/api/v2/teacher/courses/2/lessons`, {
       method: 'POST', headers: { ...teacherHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Production lesson', order: 2 }),

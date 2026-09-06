@@ -67,9 +67,9 @@ const fakeDatabase = (role: 'student' | 'teacher' = 'student'): ReadOnlyDatabase
       return result([{ content: JSON.stringify({ assetId: 'asset-1' }) }]);
     }
     if (sql.includes('FROM app_assets')) return result([{ id: 'asset-1', mime_type: 'image/png', data: 'aGVsbG8=' }]);
-    if (sql.includes('SELECT id, user_id, lesson_id')) return result([{
+    if (sql.includes('SELECT id, user_id, lesson_id') || sql.includes('FROM homework_submissions h')) return result([{
       id: 900, user_id: 1, lesson_id: 10, answer_text: '<p>Answer <script>bad()</script></p>', file_url: null, file_name: null,
-      submitted_at: '2026-08-17T10:00:00.000Z', updated_at: '2026-08-17T10:05:00.000Z', grade: 8, feedback: 'Good', status: 'graded',
+      submitted_at: '2026-08-17T10:00:00.000Z', updated_at: '2026-08-17T10:05:00.000Z', grade: 80, feedback: 'Good', status: 'graded',
     }]);
     if (sql.includes('FROM users')) {
       return result([{
