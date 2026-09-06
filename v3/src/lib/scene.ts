@@ -54,7 +54,11 @@ void main() {
 `;
 
 const WATER_FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 
 uniform vec2  uRes;
 uniform float uTime;
@@ -156,7 +160,11 @@ float bubbleLayer(vec2 p, float scale, float rise, float seed, out float glint) 
 void main() {
     vec2 uv = gl_FragCoord.xy / uRes;
     float aspect = uRes.x / uRes.y;
-    vec2 p = vec2(uv.x * aspect, uv.y);
+    /* Keep the same part of the water centred in every viewport. Anchoring
+       aspect correction at x=0 made a tall phone sample only the warm left
+       edge of the field, while the shorter desktop preview reached the cool
+       blue part. */
+    vec2 p = vec2((uv.x - 0.5) * aspect, uv.y - 0.5) + vec2(0.32, 0.5);
 
     float t = uTime * uFlow;
 
@@ -182,6 +190,13 @@ void main() {
 
     vec3 col = ramp(f * 1.12 + 0.07 * (q.x - q.y));
 
+    /* The noise supplies texture, not the art direction. Pin a restrained
+       cool pool to screen space so changing phone aspect ratio or animation
+       time cannot turn the whole background beige. */
+    vec2 coolDelta = (uv - vec2(0.68, 0.78)) * vec2(max(aspect, 0.58) / 0.58, 1.0);
+    float coolPool = 1.0 - smoothstep(0.08, 0.82, length(coolDelta));
+    col = mix(col, uC2, coolPool * 0.30);
+
     /* Where the warp is strongest the water is thinnest - pull those places
        toward the top of the ramp so the swirl has light in it. */
     col = mix(col, uC3, clamp(dot(q, q) * 0.55, 0.0, 0.42));
@@ -204,7 +219,11 @@ void main() {
 `;
 
 const UPSCALE_FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 
 uniform sampler2D uWater;
 uniform float uTime;

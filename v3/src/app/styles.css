@@ -74,6 +74,17 @@
 
 .product-scroll::-webkit-scrollbar { display: none; }
 
+/* Mirrors the shader's cool-over-warm composition when WebGL is unavailable
+   or Android restores a lost context. Keep this on the canvas itself so there
+   is never a beige-only frame behind the product UI. */
+.aquarium-canvas {
+  background-color: rgb(var(--c-base));
+  background-image:
+    radial-gradient(ellipse 85% 62% at 68% 22%, rgb(207 224 246 / 0.92), transparent 72%),
+    radial-gradient(ellipse 75% 55% at 18% 72%, rgb(210 198 180 / 0.52), transparent 76%),
+    linear-gradient(155deg, rgb(237 227 212), rgb(255 250 242));
+}
+
 .rich-text h2 { margin: 0 0 0.55rem; color: rgb(var(--c-text)); font-size: 1.22rem; font-weight: 900; line-height: 1.18; }
 .rich-text h3 { margin: 0.9rem 0 0.4rem; color: rgb(var(--c-text)); font-size: 1rem; font-weight: 900; }
 .rich-text p { margin: 0.45rem 0; }
