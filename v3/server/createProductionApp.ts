@@ -188,6 +188,17 @@ export const createProductionApp = (dependencies: ProductionAppDependencies = {}
     });
   }
 
+  if (!writesEnabled) {
+    app.use('/api/v2', (request, response, next) => {
+      if (request.method === 'GET' || request.method === 'HEAD') return next();
+      response.status(503).json({
+        code: 'FEATURE_DISABLED',
+        message: 'Зміни тимчасово вимкнені до завершення міграції даних.',
+        requestId: crypto.randomUUID(),
+      });
+    });
+  }
+
   app.use(createApp({ database: readDatabase, botToken }));
   return app;
 };

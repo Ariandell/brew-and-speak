@@ -28,6 +28,7 @@ export const apiErrorCodeSchema = z.enum([
   'COOLDOWN',
   'PAYLOAD_TOO_LARGE',
   'RATE_LIMITED',
+  'FEATURE_DISABLED',
   'INTERNAL',
 ]);
 

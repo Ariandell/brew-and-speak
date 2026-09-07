@@ -76,14 +76,12 @@ export const createSandboxCommunicationApp = (dependencies: SandboxCommunication
 
   app.get('/api/v2/sandbox/me/chat', auth, async (_request, response, next) => {
     try {
-      const { repositories, user } = await context(response);
+      const { user } = await context(response);
       if (!user) return errorBody('NOT_FOUND', 'Користувача не знайдено', 404, response);
       if (user.isBlocked) return errorBody('BLOCKED', 'Доступ заблоковано', 403, response);
       if (user.role !== 'student') return errorBody('FORBIDDEN', 'Student chat недоступний у teacher preview', 403, response);
-      const teacher = await repositories.getTeacher();
-      if (!teacher) return errorBody('NOT_FOUND', 'Викладача не знайдено', 404, response);
       const items = await listEffectiveMessages(dependencies.readDatabase, dependencies.writeDatabase, {
-        userId: user.id, otherUserId: teacher.id,
+        userId: user.id,
       });
       response.json(chatResponseSchema.parse({ items: items.map(messageView) }));
     } catch (error) { next(error); }

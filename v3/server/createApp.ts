@@ -84,6 +84,12 @@ const isoOrEpoch = (value: string | null): string => {
   return Number.isNaN(date.getTime()) ? new Date(0).toISOString() : date.toISOString();
 };
 
+const legacyAssetId = (url: string | null): string | null => {
+  if (!url) return null;
+  const match = /^\/api\/assets\/([^/?#]+)/.exec(url);
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
 const legacyHomeworkView = (submission: Awaited<ReturnType<ReturnType<typeof createLegacyReadRepositories>['listHomeworkForUser']>>[number]) => ({
   submissionId: String(submission.id),
   userId: submission.userId,
@@ -95,6 +101,9 @@ const legacyHomeworkView = (submission: Awaited<ReturnType<ReturnType<typeof cre
   createdAt: isoOrEpoch(submission.createdAt),
   gradedAt: submission.status === 'graded' ? isoOrEpoch(submission.updatedAt ?? submission.createdAt) : null,
   assets: [],
+  ...(legacyAssetId(submission.fileUrl) && submission.fileName
+    ? { legacyAttachment: { assetId: legacyAssetId(submission.fileUrl)!, fileName: submission.fileName } }
+    : {}),
 });
 
 export const createApp = (dependencies: AppDependencies = {}): Express => {
@@ -144,7 +153,12 @@ export const createApp = (dependencies: AppDependencies = {}): Express => {
       return;
     }
     if (user.role === 'student') {
-      if (user.enrolledCourseId === null || !(await repositories.isAssetReferencedByCourse(assetId, user.enrolledCourseId))) {
+      const [courseAsset, homeworkAsset, photoAsset] = await Promise.all([
+        user.enrolledCourseId === null ? false : repositories.isAssetReferencedByCourse(assetId, user.enrolledCourseId),
+        repositories.isAssetReferencedByStudentHomework(assetId, user.id),
+        repositories.isAssetInPublishedPhoto(assetId, new Date().toISOString()),
+      ]);
+      if (!courseAsset && !homeworkAsset && !photoAsset) {
         response.status(404).json({ code: 'NOT_FOUND', message: 'Медіафайл не знайдено', requestId: randomUUID() });
         return;
       }
@@ -158,11 +172,17 @@ export const createApp = (dependencies: AppDependencies = {}): Express => {
       response.status(500).json({ code: 'INTERNAL', message: 'Медіафайл має пошкоджений формат', requestId: randomUUID() });
       return;
     }
-    response.setHeader('Content-Type', asset.mimeType || 'application/octet-stream');
-    response.setHeader('Content-Length', String(Buffer.byteLength(asset.base64Data, 'base64')));
+    const bytes = Buffer.from(asset.base64Data, 'base64');
+    const detectedMime = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+      ? 'image/jpeg'
+      : bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+        ? 'image/png'
+        : asset.mimeType || 'application/octet-stream';
+    response.setHeader('Content-Type', detectedMime);
+    response.setHeader('Content-Length', String(bytes.byteLength));
     response.setHeader('Cache-Control', 'private, max-age=3600');
     response.setHeader('X-Content-Type-Options', 'nosniff');
-    response.send(Buffer.from(asset.base64Data, 'base64'));
+    response.send(bytes);
   });
 
   app.get('/api/v2/me/dictionary', (request, response, next) => {
@@ -330,13 +350,13 @@ export const createApp = (dependencies: AppDependencies = {}): Express => {
       response.status(403).json({ code: 'FORBIDDEN', message: 'Урок ще недоступний', requestId: randomUUID() });
       return;
     }
-    const prompt = normalizeLessonBlocks(lesson.blocks).find((block) => block.type === 'homework');
-    if (!prompt || prompt.type !== 'homework') {
+    const prompts = normalizeLessonBlocks(lesson.blocks).filter((block) => block.type === 'homework');
+    if (prompts.length === 0) {
       response.status(404).json({ code: 'NOT_FOUND', message: 'Homework для уроку не знайдено', requestId: randomUUID() });
       return;
     }
     const submission = (await repositories.listHomeworkForUser(user.id)).find((item) => item.lessonId === lessonId) ?? null;
-    response.json(homeworkPromptResponseSchema.parse({ lessonId, promptHtml: prompt.promptHtml, submission: submission ? legacyHomeworkView(submission) : null }));
+    response.json(homeworkPromptResponseSchema.parse({ lessonId, promptHtml: prompts.map(prompt => prompt.promptHtml).join('<hr>'), submission: submission ? legacyHomeworkView(submission) : null }));
   });
 
   app.get('/api/v2/me/homework', (request, response, next) => {
@@ -921,13 +941,11 @@ export const createApp = (dependencies: AppDependencies = {}): Express => {
   app.get('/api/v2/me/chat', legacyCommunicationAuth, async (_request, response) => {
     const context = await legacyCommunicationContext(response);
     if (!context) return response.status(503).json({ code: 'INTERNAL', message: 'Read-only database is not configured', requestId: randomUUID() });
-    const { readDatabase, repositories, user } = context;
+    const { readDatabase, user } = context;
     if (!user) return response.status(404).json({ code: 'NOT_FOUND', message: 'Користувача не знайдено', requestId: randomUUID() });
     if (user.isBlocked) return response.status(403).json({ code: 'BLOCKED', message: 'Доступ заблоковано', requestId: randomUUID() });
     if (user.role !== 'student') return response.status(403).json({ code: 'FORBIDDEN', message: 'Student chat недоступний викладачці', requestId: randomUUID() });
-    const teacher = await repositories.getTeacher();
-    if (!teacher) return response.status(404).json({ code: 'NOT_FOUND', message: 'Викладачку не знайдено', requestId: randomUUID() });
-    response.json(chatResponseSchema.parse({ items: await listLegacyMessages(readDatabase, { userId: user.id, otherUserId: teacher.id }) }));
+    response.json(chatResponseSchema.parse({ items: await listLegacyMessages(readDatabase, { userId: user.id }) }));
   });
 
   app.get('/api/v2/me/photo-messages', legacyCommunicationAuth, async (_request, response) => {

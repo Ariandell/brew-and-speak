@@ -165,7 +165,6 @@ test('course CRUD persists and refuses silent cascade deletion', async ({ page }
     await page.getByRole('button', { name: 'Створити курс' }).click();
     await page.getByRole('textbox', { name: 'Назва' }).fill('Speaking Lab');
     await page.getByRole('textbox', { name: 'Опис' }).fill('Практичний курс.');
-    await page.getByRole('textbox', { name: 'Рівень' }).fill('B2');
     await page.getByRole('button', { name: 'Зберегти' }).click();
     await page.reload();
     await expect(page.getByText('Speaking Lab')).toBeVisible();

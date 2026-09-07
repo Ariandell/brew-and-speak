@@ -184,8 +184,8 @@ const nullableNumber = (row: LegacyRow, key: string): number | null => (
 // rows; additive V3 grades are already 0..10 and never pass through here.
 const legacyGradeToTenPoint = (row: LegacyRow): number | null => {
   const grade = nullableNumber(row, 'grade');
-  if (grade === null) return null;
-  return Math.max(0, Math.min(10, Math.round(grade / 10)));
+  if (grade === null || grade < 0 || grade > 100) return null;
+  return Math.round(grade / 10);
 };
 
 const homeworkFromRow = (row: LegacyRow): LegacyHomeworkSubmission => ({
@@ -199,7 +199,7 @@ const homeworkFromRow = (row: LegacyRow): LegacyHomeworkSubmission => ({
   updatedAt: nullableString(row, 'updated_at'),
   grade: legacyGradeToTenPoint(row),
   feedback: nullableString(row, 'feedback'),
-  status: row.status === 'graded' || row.grade !== null && row.grade !== undefined ? 'graded' : 'pending',
+  status: legacyGradeToTenPoint(row) !== null ? 'graded' : 'pending',
 });
 
 export const createLegacyReadRepositories = (database: ReadOnlyDatabase) => ({
@@ -288,6 +288,22 @@ export const createLegacyReadRepositories = (database: ReadOnlyDatabase) => ({
     return rows.some(row => referenced(row.content));
   },
 
+  async isAssetReferencedByStudentHomework(assetId: string, userId: number): Promise<boolean> {
+    const urls = [`/api/assets/${assetId}`, `/api/assets/${encodeURIComponent(assetId)}`];
+    const rows = await rowsOf(database,
+      'SELECT 1 AS present FROM homework_submissions WHERE user_id = ? AND file_url IN (?, ?) LIMIT 1',
+      [userId, ...urls]);
+    return rows.length > 0;
+  },
+
+  async isAssetInPublishedPhoto(assetId: string, now: string): Promise<boolean> {
+    const urls = [`/api/assets/${assetId}`, `/api/assets/${encodeURIComponent(assetId)}`];
+    const rows = await rowsOf(database,
+      'SELECT 1 AS present FROM photo_messages WHERE image_url IN (?, ?) AND datetime(scheduled_at) <= datetime(?) LIMIT 1',
+      [...urls, now]);
+    return rows.length > 0;
+  },
+
   async getHomeworkById(submissionId: number): Promise<LegacyHomeworkSubmission | null> {
     const rows = await rowsOf(database,
       `SELECT h.id, CAST(h.user_id AS INTEGER) AS user_id, CAST(h.lesson_id AS INTEGER) AS lesson_id,
@@ -296,7 +312,7 @@ export const createLegacyReadRepositories = (database: ReadOnlyDatabase) => ({
        FROM homework_submissions h
        JOIN users owner ON owner.id = h.user_id
        JOIN lessons lesson ON lesson.id = h.lesson_id
-       WHERE h.id = ? LIMIT 1`,
+       WHERE h.id = ? AND owner.role = 'student' LIMIT 1`,
       [submissionId]);
     return rows[0] ? homeworkFromRow(rows[0]) : null;
   },
@@ -309,13 +325,13 @@ export const createLegacyReadRepositories = (database: ReadOnlyDatabase) => ({
        FROM homework_submissions h
        JOIN users owner ON owner.id = h.user_id
        JOIN lessons lesson ON lesson.id = h.lesson_id
-       WHERE h.user_id = ? ORDER BY h.submitted_at DESC, h.id DESC`,
+       WHERE h.user_id = ? AND owner.role = 'student' ORDER BY h.submitted_at DESC, h.id DESC`,
       [userId]);
     return rows.map(homeworkFromRow);
   },
 
   async listHomeworkForTeacher(status?: 'pending' | 'graded'): Promise<readonly LegacyHomeworkSubmission[]> {
-    const filter = status === undefined ? '' : " WHERE CASE WHEN h.status = 'graded' OR h.grade IS NOT NULL THEN 'graded' ELSE 'pending' END = ?";
+    const filter = status === undefined ? " WHERE owner.role = 'student'" : " WHERE owner.role = 'student' AND CASE WHEN h.grade BETWEEN 0 AND 100 THEN 'graded' ELSE 'pending' END = ?";
     const args: InArgs = status === undefined ? [] : [status];
     const rows = await rowsOf(database,
       `SELECT h.id, CAST(h.user_id AS INTEGER) AS user_id, CAST(h.lesson_id AS INTEGER) AS lesson_id,

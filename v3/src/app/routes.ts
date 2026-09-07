@@ -11,7 +11,8 @@ export type AppRoute =
     | { name: 'homework'; lessonId: number }
     | { name: 'cards' }
     | { name: 'schedule' }
-    | { name: TeacherTab }
+    | { name: Exclude<TeacherTab, 'teacher-chat'> }
+    | { name: 'teacher-chat'; studentId?: number }
     | { name: 'teacher-lessons'; courseId: number }
     | { name: 'teacher-editor'; lessonId: number }
     | { name: 'teacher-homework-review'; submissionId: string }
@@ -29,6 +30,7 @@ export const routePath = (route: AppRoute): string => {
         case 'teacher-lessons': return `/teacher/courses/${route.courseId}`;
         case 'teacher-editor': return `/teacher/lessons/${route.lessonId}`;
         case 'teacher-homework-review': return `/teacher/homework/${encodeURIComponent(route.submissionId)}`;
+        case 'teacher-chat': return route.studentId ? `/teacher/chat/${route.studentId}` : '/teacher/chat';
         case 'teacher-student': return `/teacher/students/${route.studentId}`;
         case 'teacher-preview': return `/teacher/lessons/${route.lessonId}/preview`;
         case 'teacher-broadcasts': return '/teacher/broadcasts';
@@ -36,7 +38,6 @@ export const routePath = (route: AppRoute): string => {
         case 'teacher-courses': return '/teacher/courses';
         case 'teacher-homework': return '/teacher/homework';
         case 'teacher-students': return '/teacher/students';
-        case 'teacher-chat': return '/teacher/chat';
         case 'course-select': return '/courses/select';
         case 'dictionary': return '/words';
         default: return `/${route.name}`;
@@ -64,6 +65,8 @@ export const routeFromPath = (path: string): AppRoute | null => {
     }
     const teacherStudent = clean.match(/^\/teacher\/students\/(\d+)$/);
     if (teacherStudent) return { name: 'teacher-student', studentId: Number(teacherStudent[1]) };
+    const teacherChat = clean.match(/^\/teacher\/chat\/(\d+)$/);
+    if (teacherChat) return { name: 'teacher-chat', studentId: Number(teacherChat[1]) };
 
     const exact: Record<string, AppRoute> = {
         '/': { name: 'welcome' },

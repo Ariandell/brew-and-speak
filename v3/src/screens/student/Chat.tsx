@@ -17,7 +17,9 @@ export const StudentChat = () => {
     const sendInFlight = useRef(false);
     const messages = useMemo(() => state.messages.filter(item => item.studentId === state.currentUser.id), [state.currentUser.id, state.messages]);
     const nav = (tab: StudentTab) => navigate({ name: tab });
-    useEffect(() => { void markConversationRead(state.currentUser.id, 'student').catch(() => undefined); }, [markConversationRead, state.currentUser.id]);
+    useEffect(() => { void markConversationRead(state.currentUser.id, 'student').catch(reason => {
+        if (mounted.current) setError(asyncErrorMessage(reason, 'Не вдалося оновити статус прочитання.'));
+    }); }, [markConversationRead, mounted, state.currentUser.id]);
     const submit = async () => {
         const message = body.trim();
         if (!message || sendInFlight.current) return;

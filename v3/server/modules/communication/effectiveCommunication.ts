@@ -27,9 +27,19 @@ const requiredString = (value: unknown, field: string): string => {
 
 export const canonicalCommunicationDate = (value: unknown): string => {
   const source = requiredString(value, 'date').trim();
-  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(source)
-    ? `${source.replace(' ', 'T')}Z`
-    : source;
+  let normalized = source;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(source)) {
+    // SQLite's legacy `datetime('now', 'localtime')` values are Kyiv wall
+    // time without an offset. Convert that wall time to an actual instant,
+    // including daylight-saving changes, instead of pretending it is UTC.
+    const wallAsUtc = new Date(`${source.replace(' ', 'T')}Z`);
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(wallAsUtc).filter(part => part.type !== 'literal').map(part => [part.type, Number(part.value)]));
+    const represented = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    normalized = new Date(wallAsUtc.getTime() - (represented - wallAsUtc.getTime())).toISOString();
+  }
   const date = new Date(normalized);
   if (!Number.isFinite(date.getTime())) throw new Error('Legacy communication row has invalid date');
   return date.toISOString();

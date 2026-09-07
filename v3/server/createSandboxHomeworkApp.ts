@@ -160,12 +160,12 @@ export const createSandboxHomeworkApp = (dependencies: SandboxHomeworkAppDepende
       const selectedCourseId = await getSandboxEnrollment(dependencies.writeDatabase, user.id) ?? user.enrolledCourseId;
       const lesson = await getEffectiveLesson(dependencies.writeDatabase, lessonId, await repositories.getLesson(lessonId));
       if (!lesson || user.role !== 'student' || lesson.courseId !== selectedCourseId) return errorBody('NOT_FOUND', 'Урок не знайдено', 404, response);
-      const prompt = lesson.blocks.find(block => block.type === 'homework');
-      if (!prompt || prompt.type !== 'homework') return errorBody('NOT_FOUND', 'Домашнього завдання немає', 404, response);
+      const prompts = lesson.blocks.filter(block => block.type === 'homework');
+      if (prompts.length === 0) return errorBody('NOT_FOUND', 'Домашнього завдання немає', 404, response);
       const current = await listSandboxHomework(dependencies.writeDatabase, { userId: user.id });
       const legacy = await repositories.listHomeworkForUser(user.id);
       const submission = mergedSubmissions(legacy.filter(item => item.lessonId === lessonId), current.filter(item => item.lessonId === lessonId))[0] ?? null;
-      response.json(homeworkPromptResponseSchema.parse({ lessonId, promptHtml: prompt.promptHtml, submission }));
+      response.json(homeworkPromptResponseSchema.parse({ lessonId, promptHtml: prompts.map(prompt => prompt.promptHtml).join('<hr>'), submission }));
     } catch (error) { next(error); }
   });
 
@@ -196,6 +196,21 @@ export const createSandboxHomeworkApp = (dependencies: SandboxHomeworkAppDepende
     } catch (error) {
       next(error);
     }
+  });
+
+  app.get('/api/v2/sandbox/teacher/homework/:submissionId', auth, async (request, response, next) => {
+    try {
+      await Promise.all([controlSchemaReady, homeworkReady]);
+      const submissionId = typeof request.params.submissionId === 'string' ? request.params.submissionId : '';
+      const { repositories, user } = await currentUser(response);
+      if (!user || user.role !== 'teacher' || user.isBlocked) return errorBody('FORBIDDEN', 'Недостатньо прав викладача', 403, response);
+      const current = await getSandboxHomework(dependencies.writeDatabase, submissionId);
+      if (current) return response.json(homeworkSubmissionSchema.parse(outputSubmission(current)));
+      const legacyId = /^\d+$/.test(submissionId) ? Number(submissionId) : NaN;
+      const legacy = Number.isSafeInteger(legacyId) ? await repositories.getHomeworkById(legacyId) : null;
+      if (!legacy) return errorBody('NOT_FOUND', 'Homework не знайдено', 404, response);
+      response.json(homeworkSubmissionSchema.parse(outputLegacySubmission(legacy)));
+    } catch (error) { next(error); }
   });
 
   app.post('/api/v2/sandbox/teacher/homework/:submissionId/grade', auth, async (request, response, next) => {

@@ -44,7 +44,6 @@ export const TeacherCourses = () => {
     const course = editing === 'new' ? null : state.courses.find(item => item.id === editing);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [level, setLevel] = useState('A1');
     const [notice, setNotice] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
@@ -54,15 +53,15 @@ export const TeacherCourses = () => {
     const begin = (id: number | 'new') => {
         const selected = id === 'new' ? null : state.courses.find(item => item.id === id);
         if (actionInFlight.current) return;
-        setEditing(id); setTitle(selected?.title ?? ''); setDescription(selected?.description ?? ''); setLevel(selected?.level ?? 'A1'); setNotice(''); setError('');
+        setEditing(id); setTitle(selected?.title ?? ''); setDescription(selected?.description ?? ''); setNotice(''); setError('');
     };
     const save = async () => {
         if (actionInFlight.current) return;
-        if (!title.trim() || !level.trim()) { setError('Назва й рівень обов’язкові.'); setNotice(''); return; }
+        if (!title.trim()) { setError('Назва обов’язкова.'); setNotice(''); return; }
         actionInFlight.current = true; setBusy(true); setError(''); setNotice('');
         try {
-            if (editing === 'new') await createCourse(title, description, level);
-            else if (typeof editing === 'number') await updateCourse(editing, title, description, level);
+            if (editing === 'new') await createCourse(title, description, '');
+            else if (typeof editing === 'number') await updateCourse(editing, title, description, '');
             if (!mounted.current) return;
             setEditing(null); setNotice('Курс збережено.');
         } catch (reason) {
@@ -92,8 +91,8 @@ export const TeacherCourses = () => {
     return <ProductPage nav={<TeacherNav active={teacherTabForRoute(route)} onSelect={nav} />}>
         <PageHeader eyebrow="Навчальний контент" title="Курси." description="Структура курсів без прихованого каскадного видалення." action={<button type="button" disabled={busy} onClick={() => begin('new')} aria-label="Створити курс" className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-accent text-white disabled:opacity-50"><Icon name="plus" /></button>} />
         <div className="mt-4"><AsyncFeedback error={error} success={notice} /></div>
-        {editing !== null && <Card className="mt-4 space-y-4 p-5"><Field label="Назва"><input disabled={busy} value={title} onChange={event => setTitle(event.currentTarget.value)} className={inputClass} /></Field><Field label="Опис"><textarea disabled={busy} rows={3} value={description} onChange={event => setDescription(event.currentTarget.value)} className={`${inputClass} resize-none`} /></Field><Field label="Рівень"><input disabled={busy} value={level} onChange={event => setLevel(event.currentTarget.value)} className={inputClass} /></Field><div className="grid grid-cols-2 gap-2"><Button tone="secondary" disabled={busy} onClick={() => setEditing(null)}>Скасувати</Button><Button disabled={busy} onClick={() => void save()}>{busy ? 'Збереження…' : 'Зберегти'}</Button></div>{course && <Button tone="danger" disabled={busy} className="w-full" icon="trash" onClick={() => void remove(course.id)}>{busy ? 'Видалення…' : 'Видалити порожній курс'}</Button>}</Card>}
-        <div className="mt-5 space-y-3">{[...state.courses].sort((a, b) => a.order - b.order).map(item => { const count = state.lessons.filter(lesson => lesson.courseId === item.id).length; return <Card key={item.id} className="flex items-center gap-3 p-4"><button type="button" disabled={busy} onClick={() => navigate({ name: 'teacher-lessons', courseId: item.id })} className="flex min-w-0 flex-1 items-center gap-4 text-left disabled:opacity-60"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-accent-tint text-accent"><Icon name="course" /></span><span className="min-w-0 flex-1"><span className="flex items-center gap-2"><StatusPill>{item.level}</StatusPill><span className="font-mono text-[9px] text-text-faint">{count} уроків</span></span><strong className="mt-2 block truncate text-[18px] font-black">{item.title}</strong><span className="mt-1 block truncate text-[11px] font-semibold text-text-soft">{item.description}</span></span></button><button type="button" disabled={busy} onClick={() => begin(item.id)} aria-label={`Редагувати курс ${item.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-line bg-surface text-accent disabled:opacity-50"><Icon name="edit" /></button></Card>; })}</div>
+        {editing !== null && <Card className="mt-4 space-y-4 p-5"><Field label="Назва"><input disabled={busy} value={title} onChange={event => setTitle(event.currentTarget.value)} className={inputClass} /></Field><Field label="Опис"><textarea disabled={busy} rows={3} value={description} onChange={event => setDescription(event.currentTarget.value)} className={`${inputClass} resize-none`} /></Field><div className="grid grid-cols-2 gap-2"><Button tone="secondary" disabled={busy} onClick={() => setEditing(null)}>Скасувати</Button><Button disabled={busy} onClick={() => void save()}>{busy ? 'Збереження…' : 'Зберегти'}</Button></div>{course && <Button tone="danger" disabled={busy} className="w-full" icon="trash" onClick={() => void remove(course.id)}>{busy ? 'Видалення…' : 'Видалити порожній курс'}</Button>}</Card>}
+        <div className="mt-5 space-y-3">{[...state.courses].sort((a, b) => a.order - b.order).map(item => { const count = state.lessons.filter(lesson => lesson.courseId === item.id).length; return <Card key={item.id} className="flex items-center gap-3 p-4"><button type="button" disabled={busy} onClick={() => navigate({ name: 'teacher-lessons', courseId: item.id })} className="flex min-w-0 flex-1 items-center gap-4 text-left disabled:opacity-60"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-accent-tint text-accent"><Icon name="course" /></span><span className="min-w-0 flex-1"><span className="flex items-center gap-2">{item.level && <StatusPill>{item.level}</StatusPill>}<span className="font-mono text-[9px] text-text-faint">{count} уроків</span></span><strong className="mt-2 block truncate text-[18px] font-black">{item.title}</strong><span className="mt-1 block truncate text-[11px] font-semibold text-text-soft">{item.description}</span></span></button><button type="button" disabled={busy} onClick={() => begin(item.id)} aria-label={`Редагувати курс ${item.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-line bg-surface text-accent disabled:opacity-50"><Icon name="edit" /></button></Card>; })}</div>
     </ProductPage>;
 };
 

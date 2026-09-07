@@ -47,3 +47,28 @@ test('keeps malformed legacy content visible as unsupported instead of hiding it
   if (result.type === 'unsupported') assert.match(result.reason, /fill_blank/i);
 });
 
+test('repairs legacy idle mascot tips and fill blanks without a rendered gap marker', () => {
+  const tip = normalizeLessonBlock(block('mascot_tip', { text: 'Keep going', mood: 'idle' }));
+  assert.equal(tip.type, 'mascot_tip');
+  if (tip.type === 'mascot_tip') assert.equal(tip.mood, 'neutral');
+
+  const fill = normalizeLessonBlock(block('fill_blank', {
+    sentence: 'We for the update.',
+    answer: 'had been waiting',
+    options: ['had been waiting', 'have waited'],
+  }));
+  assert.equal(fill.type, 'fill_blank');
+  if (fill.type === 'fill_blank') {
+    assert.equal(fill.sentence, 'We ___ for the update.');
+    assert.equal(fill.correctAnswer, 'had been waiting');
+  }
+});
+
+test('extracts canonical asset ids from legacy media URLs', () => {
+  const audio = normalizeLessonBlock(block('audio', { audioUrl: '/api/assets/voice%20one?cache=1' }));
+  const photo = normalizeLessonBlock(block('photo', { imageUrl: '/api/assets/photo-one', alt: 'Photo' }));
+  assert.equal(audio.type, 'audio');
+  if (audio.type === 'audio') assert.equal(audio.assetId, 'voice one');
+  assert.equal(photo.type, 'photo');
+  if (photo.type === 'photo') assert.equal(photo.assetId, 'photo-one');
+});

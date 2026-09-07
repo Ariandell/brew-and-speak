@@ -34,6 +34,7 @@ export const Flashcards = () => {
     const [offset, setOffset] = useState(0);
     const [dragging, setDragging] = useState(false);
     const [leaving, setLeaving] = useState(false);
+    const [reviewError, setReviewError] = useState('');
     const startX = useRef<number | null>(null);
     const activePointer = useRef<number | null>(null);
     const offsetRef = useRef(0);
@@ -41,12 +42,13 @@ export const Flashcards = () => {
     const committing = useRef(false);
     const card = state.cards.find(item => item.id === queue[0]);
     useEffect(() => () => { if (exitTimer.current !== null) window.clearTimeout(exitTimer.current); }, []);
-    const decide = (correct: boolean) => {
+    const decide = async (correct: boolean) => {
         if (!card) return;
-        reviewCard(card.id, correct);
+        await reviewCard(card.id, correct);
         setQueue(current => correct ? current.slice(1) : [...current.slice(1), current[0]]);
         setReviewed(value => value + 1);
         setRevealed(false);
+        setReviewError('');
     };
     const commitSwipe = (correct: boolean) => {
         if (!revealed || committing.current) return;
@@ -55,12 +57,16 @@ export const Flashcards = () => {
         offsetRef.current = target;
         setOffset(target);
         setLeaving(true);
+        setReviewError('');
         exitTimer.current = window.setTimeout(() => {
-            decide(correct);
-            offsetRef.current = 0;
-            setOffset(0);
-            setLeaving(false);
-            committing.current = false;
+            void decide(correct).catch(error => {
+                setReviewError(error instanceof Error ? error.message : 'Не вдалося зберегти повторення. Спробуй ще раз.');
+            }).finally(() => {
+                offsetRef.current = 0;
+                setOffset(0);
+                setLeaving(false);
+                committing.current = false;
+            });
         }, 180);
     };
     const beginSwipe = (event: PointerEvent<HTMLDivElement>) => {
@@ -136,6 +142,7 @@ export const Flashcards = () => {
                         {revealed ? <div className="surface mt-7"><p className="text-[22px] font-black text-accent-deep">{card.back}</p><p className="mt-3 text-[13px] font-semibold italic text-text-soft">{card.example}</p></div> : <div className="mt-9 flex items-center gap-2 rounded-pill bg-accent-tint px-4 py-2 text-[11px] font-extrabold text-accent-deep"><Icon name="spark" className="h-4 w-4" />Торкнись, щоб відкрити</div>}
                     </Card>
                     </div>
+                    {reviewError && <p role="alert" className="mt-4 rounded-[14px] bg-alert/10 px-4 py-3 text-center text-[11px] font-bold text-alert">{reviewError}</p>}
                     <p id="flashcard-gesture-hint" className="mt-4 text-center font-mono text-[9px] font-black uppercase tracking-[0.13em] text-text-faint">{revealed ? '← ще не знаю · знаю →' : 'один дотик відкриває відповідь'}</p>
                 </>
             ) : <EmptyState icon="check" title="На сьогодні все" copy="Наступні слова з’являться за розкладом повторення." action={<Button tone="secondary" onClick={() => back({ name: 'dictionary' })}>До словника</Button>} />}

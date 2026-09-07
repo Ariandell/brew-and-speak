@@ -11,12 +11,19 @@ import {
   sendSandboxMessage,
 } from './sandboxCommunicationRepository.js';
 import {
+  canonicalCommunicationDate,
   listEffectiveConversations,
   listEffectiveMessages,
   listEffectivePhotos,
   markEffectiveMessageRead,
   markEffectivePhotoViewed,
 } from './effectiveCommunication.js';
+
+test('interprets legacy naive timestamps as Kyiv wall time across DST', () => {
+  assert.equal(canonicalCommunicationDate('2026-08-01 10:00:00'), '2026-08-01T07:00:00.000Z');
+  assert.equal(canonicalCommunicationDate('2026-01-01 10:00:00'), '2026-01-01T08:00:00.000Z');
+  assert.equal(canonicalCommunicationDate('2026-08-01T10:00:00.000Z'), '2026-08-01T10:00:00.000Z');
+});
 
 test('effective communication keeps legacy history visible beside V3 writes and scopes reads to recipients', async () => {
   const root = await mkdtemp(join(tmpdir(), 'brew-effective-communication-'));
@@ -38,7 +45,7 @@ test('effective communication keeps legacy history visible beside V3 writes and 
       { sql: `INSERT INTO photo_messages VALUES (3, '/api/assets/legacy-asset', 'Legacy photo',
         '2026-08-01 09:00:00', '2026-08-01 08:00:00')`, args: [] },
       { sql: `INSERT INTO photo_messages VALUES (4, '/api/assets/future', 'Future',
-        '2026-08-01 11:00:00', '2026-08-01 08:00:00')`, args: [] },
+        '2026-08-01 14:00:00', '2026-08-01 08:00:00')`, args: [] },
     ]);
     await sendSandboxMessage(database, {
       messageId: 'v3-message', senderUserId: 9, recipientUserId: 7, body: 'V3 answer',
@@ -52,7 +59,7 @@ test('effective communication keeps legacy history visible beside V3 writes and 
     const readDatabase = createReadOnlyDatabase({ url: `file:${path}` });
     const messages = await listEffectiveMessages(readDatabase, database, { userId: 7, otherUserId: 9 });
     assert.deepEqual(messages.map((message) => message.messageId), ['legacy-chat:1', 'legacy-chat:2', 'v3-message']);
-    assert.equal(messages[1].readAt, '2026-08-01T10:01:00.000Z');
+    assert.equal(messages[1].readAt, '2026-08-01T07:01:00.000Z');
 
     assert.equal(await markEffectiveMessageRead(database, {
       messageId: 'legacy-chat:1', userId: 7, readAt: '2026-08-01T11:00:00.000Z',

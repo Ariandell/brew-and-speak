@@ -23,7 +23,7 @@ import { routeFromPath, routePath, type AppRoute } from './routes';
 test('teacher links survive reload and malformed links do not crash routing', () => {
     const routes: AppRoute[] = [
         { name: 'teacher-courses' }, { name: 'teacher-homework' },
-        { name: 'teacher-students' }, { name: 'teacher-chat' },
+        { name: 'teacher-students' }, { name: 'teacher-chat' }, { name: 'teacher-chat', studentId: 42 },
         { name: 'teacher-homework-review', submissionId: 'student/42%work' },
     ];
     for (const route of routes) assert.deepEqual(routeFromPath(routePath(route)), route);

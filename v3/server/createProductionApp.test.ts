@@ -162,3 +162,20 @@ test('health remains available when the deployment database URL is malformed', a
     else process.env.V3_WRITES_ENABLED = originalWrites;
   }
 });
+
+test('closed production write gate returns an explicit service error instead of a missing route', async () => {
+  const server = createProductionApp({ readDatabase: null, botToken: token, writesEnabled: false }).listen(0);
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/v2/me/enrollment`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ courseId: 1 }),
+    });
+    assert.equal(response.status, 503);
+    const body = await response.json() as { code: string; message: string };
+    assert.equal(body.code, 'FEATURE_DISABLED');
+    assert.match(body.message, /міграції/i);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});

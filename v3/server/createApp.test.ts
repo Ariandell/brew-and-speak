@@ -69,7 +69,7 @@ const fakeDatabase = (role: 'student' | 'teacher' = 'student'): ReadOnlyDatabase
     }
     if (sql.includes('FROM app_assets')) return result([{ id: 'asset-1', mime_type: 'image/png', data: 'aGVsbG8=' }]);
     if (sql.includes('SELECT id, user_id, lesson_id') || sql.includes('FROM homework_submissions h')) return result([{
-      id: 900, user_id: 1, lesson_id: 10, answer_text: '<p>Answer <script>bad()</script></p>', file_url: null, file_name: null,
+      id: 900, user_id: 1, lesson_id: 10, answer_text: '<p>Answer <script>bad()</script></p>', file_url: '/api/assets/asset-1', file_name: 'answer.png',
       submitted_at: '2026-08-17T10:00:00.000Z', updated_at: '2026-08-17T10:05:00.000Z', grade: 80, feedback: 'Good', status: 'graded',
     }]);
     if (sql.includes('FROM users')) {
@@ -164,7 +164,9 @@ test('read-only student flow authenticates and reads path and lesson', async () 
 
     const studentHomework = await fetch(`${baseUrl}/api/v2/me/homework`, { headers });
     assert.equal(studentHomework.status, 200);
-    assert.equal((await studentHomework.json()).items[0].status, 'graded');
+    const studentHomeworkBody = await studentHomework.json();
+    assert.equal(studentHomeworkBody.items[0].status, 'graded');
+    assert.deepEqual(studentHomeworkBody.items[0].legacyAttachment, { assetId: 'asset-1', fileName: 'answer.png' });
 
     const chat = await fetch(`${baseUrl}/api/v2/me/chat`, { headers });
     assert.equal(chat.status, 200);
@@ -227,6 +229,8 @@ test('teacher can read the workspace while student is denied', async () => {
     const teacherHomeworkDetails = await fetch(`http://127.0.0.1:${teacherAddress.port}/api/v2/teacher/homework/900`, { headers });
     assert.equal(teacherHomeworkDetails.status, 200);
     assert.equal((await teacherHomeworkDetails.json()).answerHtml, '<p>Answer </p>');
+    const teacherHomeworkAttachment = await fetch(`http://127.0.0.1:${teacherAddress.port}/api/v2/teacher/homework/900`, { headers });
+    assert.deepEqual((await teacherHomeworkAttachment.json()).legacyAttachment, { assetId: 'asset-1', fileName: 'answer.png' });
 
     const conversations = await fetch(`http://127.0.0.1:${teacherAddress.port}/api/v2/teacher/chat/conversations`, { headers });
     assert.equal(conversations.status, 200);

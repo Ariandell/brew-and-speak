@@ -10,7 +10,12 @@ const time = (value: string) => new Intl.DateTimeFormat('uk-UA', { hour: '2-digi
 
 export const TeacherChat = () => {
     const { state, route, navigate, sendMessage, markConversationRead } = useAppState();
-    const [selectedId, setSelectedId] = useState(state.students[0]?.id ?? 0);
+    const requestedStudentId = route.name === 'teacher-chat' ? route.studentId : undefined;
+    const [selectedId, setSelectedId] = useState(
+        requestedStudentId && state.students.some(student => student.id === requestedStudentId)
+            ? requestedStudentId
+            : state.students[0]?.id ?? 0,
+    );
     const [body, setBody] = useState('');
     const [sending, setSending] = useState(false);
     const [error, setError] = useState('');
@@ -19,7 +24,9 @@ export const TeacherChat = () => {
     const messages = useMemo(() => state.messages.filter(item => item.studentId === selectedId), [selectedId, state.messages]);
     const selected = state.students.find(item => item.id === selectedId);
     const nav = (tab: TeacherTab) => navigate({ name: tab });
-    useEffect(() => { if (selectedId) void markConversationRead(selectedId, 'teacher').catch(() => undefined); }, [markConversationRead, selectedId]);
+    useEffect(() => { if (selectedId) void markConversationRead(selectedId, 'teacher').catch(reason => {
+        if (mounted.current) setError(asyncErrorMessage(reason, 'Не вдалося оновити статус прочитання.'));
+    }); }, [markConversationRead, mounted, selectedId]);
     const submit = async () => {
         const message = body.trim();
         if (!message || !selectedId || sendInFlight.current) return;

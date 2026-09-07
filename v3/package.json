@@ -14,6 +14,7 @@
     "api:typecheck": "tsc -p server/tsconfig.json --noEmit",
     "api:production:test": "node --import tsx --test server/createProductionApp.test.ts server/productionEntrypoint.test.ts",
     "legacy:inventory": "tsx server/scripts/legacyInventory.ts",
+    "legacy:api-audit": "tsx server/scripts/auditLegacyApi.ts",
     "legacy:snapshot": "tsx server/scripts/legacySnapshot.ts",
     "sandbox:attempt-rehearsal": "tsx server/scripts/sandboxAttemptRehearsal.ts",
     "sandbox:migrate": "tsx server/scripts/sandboxMigrate.ts",

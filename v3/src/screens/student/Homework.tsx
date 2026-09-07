@@ -58,8 +58,9 @@ export const Homework = ({ lessonId }: { lessonId: number }) => {
                     {fileName && <p className="mt-2 text-[11px] font-bold text-text-soft">Прикріплено: {fileName}</p>}
                     {fileError && <p role="alert" className="mt-2 text-[11px] font-bold text-alert">{fileError}</p>}
                 </Field>
-                {submission?.fileName && <HomeworkAttachment assetId={submission.assetId} fileName={submission.fileName} />}
-                {!locked && <Button className="w-full" disabled={busy || (!answer.trim() && !file && !submission?.assetId)} onClick={submit}>{busy ? 'Збереження…' : submission ? 'Оновити й надіслати' : 'Надіслати на перевірку'}</Button>}
+                {submission?.assets?.map(asset => <HomeworkAttachment key={asset.assetId} assetId={asset.assetId} fileName={asset.fileName ?? asset.assetId} />)}
+                {!submission?.assets?.length && submission?.fileName && <HomeworkAttachment assetId={submission.assetId} fileName={submission.fileName} />}
+                {!locked && <Button className="w-full" disabled={busy || (!answer.trim() && !file && !submission?.assetId && !submission?.assets?.length)} onClick={submit}>{busy ? 'Збереження…' : submission ? 'Оновити й надіслати' : 'Надіслати на перевірку'}</Button>}
                 {saveError && <p role="alert" className="text-[12px] font-bold text-alert">{saveError}</p>}
                 {!busy && !saveError && (sent || submission?.status === 'pending') && <p role="status" className="text-center text-[11px] font-extrabold text-good">Роботу збережено. Вона вже у викладачки.</p>}
             </Card>

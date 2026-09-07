@@ -28,6 +28,10 @@ const signedInitData = ({ id, firstName, username }: Identity): string => {
 const openAs = async (browser: Browser, identity: Identity, hash: string): Promise<TrackedPage> => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', reducedMotion: 'reduce' });
   const initData = signedInitData(identity);
+  await context.route('https://telegram.org/js/telegram-web-app.js', route => route.fulfill({
+    contentType: 'application/javascript',
+    body: 'window.Telegram=window.Telegram||{};window.Telegram.WebApp=window.Telegram.WebApp||{};',
+  }));
   await context.addInitScript(value => {
     Object.defineProperty(window, 'Telegram', {
       configurable: true,
@@ -174,7 +178,6 @@ test('teacher creates a course, creates and edits a lesson, then removes both em
   await page.getByRole('button', { name: 'Створити курс' }).click();
   await page.getByRole('textbox', { name: 'Назва' }).fill('Production Speaking Lab');
   await page.getByRole('textbox', { name: 'Опис' }).fill('Ізольований E2E курс.');
-  await page.getByRole('textbox', { name: 'Рівень' }).fill('B2');
   await page.getByRole('button', { name: 'Зберегти' }).click();
   await expect(page.getByText('Production Speaking Lab')).toBeVisible();
   await page.getByText('Production Speaking Lab').click();

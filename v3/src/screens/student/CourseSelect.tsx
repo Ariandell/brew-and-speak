@@ -35,7 +35,7 @@ export const CourseSelect = () => {
                     return (
                         <Card key={course.id} className={`p-5 ${active ? 'ring-2 ring-accent/25' : ''}`}>
                             <div className="flex items-center justify-between gap-3">
-                                <StatusPill tone={active ? 'green' : 'blue'}>{active ? 'Обрано' : course.level}</StatusPill>
+                                <StatusPill tone={active ? 'green' : 'blue'}>{active ? 'Обрано' : course.level || 'Курс'}</StatusPill>
                                 <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-text-faint">{course.lessonCount ?? state.lessons.filter(lesson => lesson.courseId === course.id).length} уроків</span>
                             </div>
                             <h2 className="mt-4 text-[24px] font-black leading-tight">{course.title}</h2>

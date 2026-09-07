@@ -35,6 +35,13 @@ const objectContent = (block: LegacyLessonBlock): Record<string, unknown> => {
 
 const text = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 
+const assetId = (value: unknown): string => {
+  const source = text(value);
+  const match = /^\/api\/assets\/([^/?#]+)(?:[?#].*)?$/.exec(source);
+  if (!match) return source;
+  try { return decodeURIComponent(match[1]); } catch { return match[1]; }
+};
+
 const stringArray = (value: unknown): string[] => Array.isArray(value)
   ? value.map(text).filter(Boolean)
   : [];
@@ -52,6 +59,25 @@ const options = (value: unknown): Array<{ label: string; isCorrect: boolean }> =
   }).filter((option) => option.label.length > 0);
 };
 
+const mascotMood = (value: unknown): 'neutral' | 'happy' | 'perfect' | 'sad' | 'surprised' => {
+  const mood = text(value);
+  // The original editor stored the resting pose as `idle`; V3 calls the same
+  // expression `neutral`. Treat it as a vocabulary rename, not broken content.
+  if (mood === 'idle' || mood === '') return 'neutral';
+  return ['neutral', 'happy', 'perfect', 'sad', 'surprised'].includes(mood)
+    ? mood as 'neutral' | 'happy' | 'perfect' | 'sad' | 'surprised'
+    : 'neutral';
+};
+
+const sentenceWithGap = (value: unknown): string => {
+  const sentence = text(value);
+  if (/_+/.test(sentence) || !sentence) return sentence;
+  // A few records created by the legacy editor omitted the visual underscore
+  // while keeping the missing word after the first subject. The old UI still
+  // rendered them as choices; restore the marker V3 needs to render the gap.
+  return sentence.replace(/^(\S+)(\s+)/, '$1 ___$2');
+};
+
 const normalizedBlock = (block: LegacyLessonBlock, content: Record<string, unknown>): unknown => {
   switch (block.type) {
     case 'text':
@@ -60,14 +86,14 @@ const normalizedBlock = (block: LegacyLessonBlock, content: Record<string, unkno
       return {
         ...block,
         type: 'audio',
-        assetId: text(content.assetId ?? content.audioUrl),
+        assetId: assetId(content.assetId ?? content.audioUrl),
         title: text(content.caption) || undefined,
       };
     case 'photo':
       return {
         ...block,
         type: 'photo',
-        assetId: text(content.assetId ?? content.imageUrl),
+        assetId: assetId(content.assetId ?? content.imageUrl),
         alt: text(content.alt ?? content.caption),
       };
     case 'mascot_tip':
@@ -75,7 +101,7 @@ const normalizedBlock = (block: LegacyLessonBlock, content: Record<string, unkno
         ...block,
         type: 'mascot_tip',
         html: sanitizeRichText(content.text),
-        mood: text(content.mood) || 'neutral',
+        mood: mascotMood(content.mood),
       };
     case 'quiz': {
       const quizOptions = options(content.options);
@@ -96,7 +122,7 @@ const normalizedBlock = (block: LegacyLessonBlock, content: Record<string, unkno
       {
         const fillOptions = stringArray(content.options);
         const correctAnswer = text(content.correctAnswer ?? content.answer);
-        const sentence = text(content.sentence);
+        const sentence = sentenceWithGap(content.sentence);
         if (!/_+/.test(sentence) || !correctAnswer || !fillOptions.some((option) => option.trim() === correctAnswer.trim())) {
           throw new ContentInvalidError(`Block ${block.id} has an invalid fill_blank answer`);
         }

@@ -9,6 +9,7 @@ export const HomeContainer = () => {
     const [openedBroadcast, setOpenedBroadcast] = useState<(typeof state.broadcasts)[number] | null>(null);
     const [broadcastUrl, setBroadcastUrl] = useState<string | null>(null);
     const [broadcastError, setBroadcastError] = useState('');
+    const [viewError, setViewError] = useState('');
     const course = state.courses.find(item => item.id === state.currentUser.courseId);
     const lessons = state.lessons.filter(item => item.courseId === course?.id).sort((a, b) => a.order - b.order);
     const accessibleLessonIds = useMemo(() => new Set(lessons.filter(item => item.status !== 'locked').map(item => item.id)), [lessons]);
@@ -36,7 +37,10 @@ export const HomeContainer = () => {
     const openBroadcast = () => {
         if (!broadcast) return;
         setOpenedBroadcast(broadcast);
-        void markBroadcastViewed(broadcast.id);
+        setViewError('');
+        void markBroadcastViewed(broadcast.id).catch(error => {
+            setViewError(error instanceof Error ? error.message : 'Не вдалося позначити повідомлення прочитаним.');
+        });
     };
     return <>
         <Home model={model} onOpenLesson={() => current ? navigate({ name: 'lesson', lessonId: current.id }) : navigate({ name: 'course-select' })} onOpenHomework={() => current && navigate({ name: 'homework', lessonId: current.id })} onOpenCards={() => navigate({ name: 'cards' })} onOpenSchedule={() => navigate({ name: 'schedule' })} onOpenBroadcast={openBroadcast} onNavigate={nav} />
@@ -45,6 +49,7 @@ export const HomeContainer = () => {
                 <div className="flex items-center justify-between"><strong className="text-[15px] font-black">Повідомлення викладачки</strong><button type="button" onClick={() => setOpenedBroadcast(null)} aria-label="Закрити" className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-tint font-black text-accent">×</button></div>
                 <div className="mt-3 flex min-h-48 items-center justify-center overflow-hidden rounded-[18px] bg-accent-tint/50">{broadcastUrl ? <img src={broadcastUrl} alt="Фото від викладачки" className="max-h-[58dvh] w-full object-contain" /> : broadcastError ? <p role="alert" className="p-5 text-center text-[12px] font-bold text-alert">{broadcastError}</p> : <p className="text-[12px] font-bold text-text-faint">Завантаження фото…</p>}</div>
                 {openedBroadcast.caption && <p className="mt-4 text-[13px] font-semibold leading-relaxed text-text-soft">{openedBroadcast.caption}</p>}
+                {viewError && <p role="alert" className="mt-3 text-[11px] font-bold text-alert">{viewError}</p>}
             </div>
         </div>}
     </>;

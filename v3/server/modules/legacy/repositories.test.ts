@@ -68,3 +68,23 @@ test('legacy lesson repository maps level and block rows without writing', async
   assert.equal(queries.length, 2);
   assert.ok(queries.every((query) => /^SELECT/i.test(typeof query === 'string' ? query : query.sql)));
 });
+
+test('legacy media authorization recognizes a student homework file and a published photo', async () => {
+  const queries: InStatement[] = [];
+  const database: ReadOnlyDatabase = {
+    async execute(statement) {
+      queries.push(statement);
+      const sql = typeof statement === 'string' ? statement : statement.sql;
+      if (sql.includes('FROM homework_submissions')) return result([{ present: 1 }]);
+      if (sql.includes('FROM photo_messages')) return result([{ present: 1 }]);
+      return result([]);
+    },
+  };
+  const repositories = createLegacyReadRepositories(database);
+  assert.equal(await repositories.isAssetReferencedByStudentHomework('homework asset', 7), true);
+  assert.equal(await repositories.isAssetInPublishedPhoto('photo asset', '2026-09-07T03:00:00.000Z'), true);
+  const statements = queries.map(query => typeof query === 'string' ? { sql: query, args: [] } : query);
+  assert.deepEqual(statements[0]?.args, [7, '/api/assets/homework asset', '/api/assets/homework%20asset']);
+  assert.deepEqual(statements[1]?.args, ['/api/assets/photo asset', '/api/assets/photo%20asset', '2026-09-07T03:00:00.000Z']);
+  assert.ok(statements.every(query => /^SELECT/i.test(query.sql)));
+});
