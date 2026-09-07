@@ -7,6 +7,16 @@ import { effectiveCoursePathRecords } from '../progress/effectiveCoursePath.js';
 
 const num = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
+export const canonicalSrsDate = (value: unknown): string | null => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const source = value.trim();
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(source)
+    ? `${source.replace(' ', 'T')}Z`
+    : source;
+  const date = new Date(normalized);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+};
+
 export async function listEffectiveFlashcards(
   readDatabase: ReadOnlyDatabase, writeDatabase: SandboxWriteDatabase, user: LegacyUser,
   courseId: number, limit: number | null = null,
@@ -45,7 +55,7 @@ export async function listEffectiveFlashcards(
       timesShown: Math.max(0, num(progress.times_shown)), timesCorrect: Math.max(0, num(progress.times_correct)),
       timesWrong: Math.max(0, num(progress.times_wrong)), easeFactor: Math.max(1.3, num(progress.ease_factor, 2.5)),
       intervalDays: Math.max(0, num(progress.interval_days)),
-      nextReviewAt: typeof progress.next_review_at === 'string' ? progress.next_review_at : null,
+      nextReviewAt: canonicalSrsDate(progress.next_review_at),
     } satisfies LegacyFlashcard;
   });
   const now = Date.now();

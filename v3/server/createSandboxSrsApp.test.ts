@@ -23,7 +23,7 @@ const readDatabase: ReadOnlyDatabase = {
   async execute(statement: InStatement) {
     const sql = typeof statement === 'string' ? statement : statement.sql;
     if (sql.includes('FROM users')) return result([{ id: 7, telegram_id: '42', name: 'Student', username: null, role: 'student', is_blocked: 0, enrolled_course_id: 2 }]);
-    if (sql.includes('FROM flashcards')) return result([{ id: 500, lesson_id: 10, word: 'brew', translation: 'заварювати', example_phrase: null, lesson_title: 'Coffee', times_shown: 0, times_correct: 0, times_wrong: 0, ease_factor: 2.5, interval_days: 0, next_review_at: null }]);
+    if (sql.includes('FROM flashcards')) return result([{ id: 500, lesson_id: 10, word: 'brew', translation: 'заварювати', example_phrase: null, lesson_title: 'Coffee', times_shown: 1, times_correct: 1, times_wrong: 0, ease_factor: 2.5, interval_days: 1, next_review_at: '2026-09-08 12:34:56' }]);
     if (sql.includes('FROM user_progress')) return result([{ lesson_id: 10, status: 'completed' }]);
     if (sql.includes('FROM homework_submissions') || sql.includes('FROM lesson_blocks')) return result([]);
     if (sql.includes('FROM lessons WHERE level_id')) return result([{ id: 10, title: 'Coffee', lesson_order: 1 }]);
@@ -42,6 +42,9 @@ test('sandbox SRS API scopes card access and honors idempotency', async () => {
     assert.ok(address && typeof address !== 'string');
     const url = `http://127.0.0.1:${address.port}/api/v2/sandbox/me/flashcards/500/review`;
     const headers = { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': signedInitData() };
+    const legacyDictionary = await fetch(`${baseUrl(address.port)}/api/v2/sandbox/me/dictionary`, { headers });
+    assert.equal(legacyDictionary.status, 200);
+    assert.equal((await legacyDictionary.json()).items[0].nextReviewAt, '2026-09-08T12:34:56.000Z');
     const first = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ correct: true, idempotencyKey: 'srs-1' }) });
     assert.equal(first.status, 201);
     const firstBody = await first.json();
