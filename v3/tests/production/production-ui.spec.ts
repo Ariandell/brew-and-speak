@@ -184,8 +184,8 @@ test('teacher creates a course, creates and edits a lesson, then removes both em
   await page.getByLabel('Створити урок').click();
   await expect(page.getByRole('heading', { name: 'Редактор.' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Назва уроку' }).fill('Production UI Lesson');
-  await page.getByRole('button', { name: /Зберегти 1 блок/ }).click();
-  await expect(page.getByRole('button', { name: 'Чернетку збережено' })).toBeVisible();
+  await page.getByRole('button', { name: 'Зберегти урок і словник', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Урок і словник збережено' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Назва уроку' })).toHaveValue('Production UI Lesson');
   await page.goBack();
@@ -260,4 +260,37 @@ test('role guards reject cross-role screens and protected API calls', async ({ b
   });
   expect(teacherStudentApiStatus).toBe(403);
   allowExpectedHttpConsole(teacher, 403);
+});
+
+test('teacher formats blocks and imports vocabulary that becomes student cards', async ({ browser }) => {
+  const { page } = await openAs(browser, identities.teacher, '/teacher/lessons/1');
+  await expect(page.getByRole('heading', { name: '📖 Словник уроку (3 слів)' })).toBeVisible();
+  await page.getByRole('button', { name: '+ Текст', exact: true }).click();
+  const text = page.getByRole('textbox', { name: 'Текст уроку…', exact: true });
+  await text.fill('Перший абзац');
+  await text.press('End');
+  await text.press('Enter');
+  await page.keyboard.type('Другий абзац');
+  await text.press('Control+a');
+  await page.getByRole('button', { name: 'Ж', exact: true }).last().click();
+  await page.getByText('Вставити список слів / з таблиці', { exact: true }).click();
+  await page.getByRole('textbox', { name: 'Список слів' }).fill('happy — щасливий\nexcited — схвильований');
+  await page.getByRole('button', { name: 'Додати список', exact: true }).click();
+  await page.getByRole('button', { name: 'Зберегти урок і словник', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Урок і словник збережено' })).toBeVisible();
+  await page.reload();
+  await expect(text).toContainText('Другий абзац');
+  expect(await text.locator('div, p, br').count()).toBeGreaterThan(0);
+  expect(await text.locator('strong, b').count()).toBeGreaterThan(0);
+  await expect(page.getByRole('textbox', { name: 'Слово 4', exact: true })).toHaveValue('happy');
+  await page.getByRole('heading', { name: /Словник уроку/ }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'node_modules/.cache/production-e2e/teacher-vocabulary.png', fullPage: true });
+  await page.getByRole('button', { name: 'Передпоказ уроку' }).click();
+  await expect(page).toHaveURL(/\/preview$/);
+  await expect(page.locator('.rich-text').filter({ hasText: 'Перший абзац' }).locator('div, p, br').first()).toBeVisible();
+  await page.locator('.rich-text').filter({ hasText: 'Перший абзац' }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'node_modules/.cache/production-e2e/teacher-formatting.png', fullPage: true });
+  const student = await openAs(browser, identities.student, '/words');
+  await expect(student.page.getByText('happy', { exact: true })).toBeVisible();
+  await expect(student.page.getByText('excited', { exact: true })).toBeVisible();
 });

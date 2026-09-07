@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { LessonBlock, RecordAttemptAnswerRequest } from '../api/contracts';
 import { createDemoState } from './demoData';
+import type { LessonVocabulary } from '../api/vocabularyContracts';
 import type { AppRoute } from './routes';
 import { routeFromPath, routePath } from './routes';
 import type { LessonResult, ProductBroadcast, ProductHomework, ProductState, ProductUser } from './productTypes';
@@ -63,6 +64,9 @@ const initialRoute = (role: ProductUser['role']): AppRoute => {
 };
 
 export interface AppActions {
+    loadLessonVocabulary(lessonId: number): Promise<LessonVocabulary>;
+    generateLessonVocabulary(lessonId: number): Promise<{ items: Array<{ front: string; back: string }> }>;
+    saveLessonVocabulary(lessonId: number, input: LessonVocabulary): Promise<LessonVocabulary>;
     navigate(route: AppRoute, options?: { replace?: boolean }): void;
     back(fallback?: AppRoute): void;
     resetDemo(): void;
@@ -351,6 +355,15 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
         state: visibleState, route, demo: true, navigate, back, resetDemo, enroll, completeLesson, recordLessonAnswer, answerLesson, finishLesson,
         submitHomework, downloadAsset: readDemoAttachment, uploadAsset: saveDemoAttachment, gradeHomework, reviewCard, sendMessage, toggleStudentBlocked, saveLesson, createLesson, deleteLesson,
         createCourse, updateCourse, deleteCourse, createBroadcast, deleteBroadcast, markBroadcastViewed, markConversationRead,
+        loadLessonVocabulary: async lessonId => ({ revision: 0, items: visibleState.cards.filter(card => card.lessonId === lessonId).map(({ id, front, back }) => ({ id, front, back })) }),
+        generateLessonVocabulary: async () => { throw new Error('AI-генератор доступний у робочому застосунку, не в деморежимі.'); },
+        saveLessonVocabulary: async (lessonId, input) => {
+            setState(current => ({ ...current, cards: [...current.cards.filter(card => card.lessonId !== lessonId), ...input.items.map(item => ({
+                example: '', state: 'new' as const, due: true, timesShown: 0, timesCorrect: 0, timesWrong: 0, easeFactor: 2.5, intervalDays: 0, nextReviewAt: null,
+                ...current.cards.find(card => card.id === item.id), ...item, lessonId,
+            }))] }));
+            return { ...input, revision: input.revision + 1 };
+        },
     }), [answerLesson, back, completeLesson, createBroadcast, createCourse, createLesson, deleteBroadcast, deleteCourse, deleteLesson, enroll, finishLesson, gradeHomework, markBroadcastViewed, markConversationRead, navigate, recordLessonAnswer, resetDemo, reviewCard, route, saveLesson, sendMessage, submitHomework, toggleStudentBlocked, updateCourse, visibleState]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

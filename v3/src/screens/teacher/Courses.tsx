@@ -1,4 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { vocabularySchema, type LessonVocabulary } from '../../api/vocabularyContracts';
+import { LessonVocabularyEditor } from './LessonVocabularyEditor';
 import type { LessonBlock } from '../../api/contracts';
 import { createLessonBlock, nextBlockId, validateLessonDraft } from '../../app/domain';
 import { useAppState } from '../../app/AppState';
@@ -8,6 +10,8 @@ import { AsyncFeedback, asyncErrorMessage, useMountedRef } from '../../ui/AsyncF
 import { Button, Card, EmptyState, Field, inputClass, PageHeader, ProductPage, StatusPill } from '../../ui/ProductUI';
 import { RichTextDraftEditor } from '../../ui/RichTextDraftEditor';
 import { TeacherNav } from '../../ui/TeacherNav';
+import { ChoiceEditor } from './ChoiceEditor';
+import { WordOrderEditor } from './WordOrderEditor';
 
 const blockNames: Record<LessonBlock['type'], string> = {
     text: 'Текст', audio: 'Аудіо', photo: 'Фото', mascot_tip: 'Підказка маскота', quiz: 'Тест',
@@ -149,22 +153,30 @@ const BlockEditor = ({ block, update }: { block: LessonBlock; update: (patch: Re
         case 'mascot_tip': return <div className="space-y-3"><Field label="Настрій"><select value={block.mood} onChange={event => update({ mood: event.currentTarget.value })} className={inputClass}>{['neutral', 'happy', 'perfect', 'sad', 'surprised'].map(value => <option key={value}>{value}</option>)}</select></Field><RichTextDraftEditor value={block.html} onChange={html => update({ html })} placeholder="Коротка підказка…" /></div>;
         case 'audio': return <div className="space-y-3"><AssetField label="Аудіофайл" accept="audio/*" assetId={block.assetId} onUploaded={assetId => update({ assetId })} /><Field label="Підпис"><input value={block.title ?? ''} onChange={event => update({ title: event.currentTarget.value })} className={inputClass} /></Field></div>;
         case 'photo': return <div className="space-y-3"><AssetField label="Зображення" accept="image/*" assetId={block.assetId} onUploaded={assetId => update({ assetId })} /><Field label="Опис зображення"><input value={block.alt} onChange={event => update({ alt: event.currentTarget.value })} className={inputClass} /></Field></div>;
-        case 'quiz': return <div className="space-y-3"><Field label="Питання"><input value={block.question} onChange={event => update({ question: event.currentTarget.value })} className={inputClass} /></Field><Field label="Варіанти" hint="кожен з нового рядка"><textarea rows={4} value={block.options.join('\n')} onChange={event => update({ options: event.currentTarget.value.split('\n') })} className={`${inputClass} resize-y`} /></Field><Field label="Правильна відповідь"><input value={block.correctOption} onChange={event => update({ correctOption: event.currentTarget.value })} className={inputClass} /></Field></div>;
-        case 'fill_blank': return <div className="space-y-3"><Field label="Речення" hint="пропуск познач _"><input value={block.sentence} onChange={event => update({ sentence: event.currentTarget.value })} className={inputClass} /></Field><Field label="Варіанти" hint="кожен з нового рядка"><textarea rows={4} value={block.options.join('\n')} onChange={event => update({ options: event.currentTarget.value.split('\n') })} className={`${inputClass} resize-y`} /></Field><Field label="Правильна відповідь"><input value={block.correctAnswer} onChange={event => update({ correctAnswer: event.currentTarget.value })} className={inputClass} /></Field></div>;
+        case 'quiz': return <div className="space-y-3"><Field label="Питання"><input value={block.question} onChange={event => update({ question: event.currentTarget.value })} className={inputClass} /></Field><ChoiceEditor options={block.options} correct={block.correctOption} onChange={(options, correctOption) => update({ options, correctOption })} /></div>;
+        case 'fill_blank': return <div className="space-y-3"><Field label="Речення" hint="пропуск познач ___"><input value={block.sentence} onChange={event => update({ sentence: event.currentTarget.value })} className={inputClass} /></Field><ChoiceEditor options={block.options} correct={block.correctAnswer} onChange={(options, correctAnswer) => update({ options, correctAnswer })} /></div>;
         case 'true_false': return <div className="space-y-3"><Field label="Твердження"><textarea rows={3} value={block.statement} onChange={event => update({ statement: event.currentTarget.value })} className={`${inputClass} resize-y`} /></Field><Field label="Правильна відповідь"><select value={String(block.correct)} onChange={event => update({ correct: event.currentTarget.value === 'true' })} className={inputClass}><option value="true">Вірно</option><option value="false">Хибно</option></select></Field></div>;
-        case 'word_order': return <div className="space-y-3"><Field label="Слова" hint="через пробіл"><textarea rows={3} value={block.words.join(' ')} onChange={event => update({ words: event.currentTarget.value.split(/\s+/).filter(Boolean) })} className={`${inputClass} resize-y`} /></Field><Field label="Правильне речення"><textarea rows={3} value={block.correctOrder.join(' ')} onChange={event => update({ correctOrder: event.currentTarget.value.split(/\s+/).filter(Boolean) })} className={`${inputClass} resize-y`} /></Field></div>;
-        case 'match_pairs': return <Field label="Пари" hint="слово = відповідник, кожна з нового рядка"><textarea rows={5} value={block.pairs.map(pair => `${pair.left} = ${pair.right}`).join('\n')} onChange={event => update({ pairs: event.currentTarget.value.split('\n').map(line => { const [left = '', ...right] = line.split('='); return { left: left.trim(), right: right.join('=').trim() }; }) })} className={`${inputClass} resize-y`} /></Field>;
+        case 'word_order': return <WordOrderEditor correctOrder={block.correctOrder} update={update} />;
+        case 'match_pairs': return <div className="space-y-3">{block.pairs.map((pair, index) => <div key={index} className="flex gap-2">{(['left', 'right'] as const).map(side => <input key={side} aria-label={`${side === 'left' ? 'Слово' : 'Відповідник'} ${index + 1}`} placeholder={side === 'left' ? 'Слово' : 'Відповідник'} value={pair[side]} className={`${inputClass} min-w-0 flex-1`} onChange={event => update({ pairs: block.pairs.map((item, i) => i === index ? { ...item, [side]: event.target.value } : item) })} />)}<button type="button" aria-label={`Видалити пару ${index + 1}`} onClick={() => update({ pairs: block.pairs.filter((_, i) => i !== index) })} className="text-alert">×</button></div>)}<Button tone="secondary" onClick={() => update({ pairs: [...block.pairs, { left: '', right: '' }] })}>+ Додати пару</Button></div>;
         case 'homework': return <RichTextDraftEditor value={block.promptHtml} onChange={promptHtml => update({ promptHtml })} placeholder="Умова домашнього завдання…" />;
         case 'unsupported': return <p className="rounded-[12px] bg-warm/12 p-3 text-[11px] font-bold text-[#91520e]">{block.reason}. Блок показано, а не приховано: заміни його підтримуваним типом, коли зміст буде відомий.</p>;
     }
 };
 
 export const LessonEditor = ({ lessonId }: { lessonId: number }) => {
-    const { state, saveLesson, navigate, back } = useAppState();
+    const { state, saveLesson, loadLessonVocabulary, saveLessonVocabulary, navigate, back } = useAppState();
+    const [vocabulary, setVocabulary] = useState<LessonVocabulary | null>(null);
+    const [vocabularyError, setVocabularyError] = useState('');
+    const loadVocabulary = useRef(loadLessonVocabulary);
+    useEffect(() => {
+        let active = true;
+        void loadVocabulary.current(lessonId).then(value => { if (active) setVocabulary(value); })
+            .catch(reason => { if (active) setVocabularyError(asyncErrorMessage(reason, 'Не вдалося завантажити словник. Відкрийте урок повторно.')); });
+        return () => { active = false; };
+    }, [lessonId]);
     const lesson = state.lessons.find(item => item.id === lessonId);
     const [title, setTitle] = useState(lesson?.title ?? '');
     const [blocks, setBlocks] = useState<LessonBlock[]>(lesson?.blocks ?? []);
-    const [type, setType] = useState<LessonBlock['type']>('text');
     const [saved, setSaved] = useState(false);
     const [showIssues, setShowIssues] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -176,28 +188,39 @@ export const LessonEditor = ({ lessonId }: { lessonId: number }) => {
     const update = (id: number, patch: Record<string, unknown>) => setBlocks(current => current.map(block => block.id === id ? ({ ...block, ...patch } as LessonBlock) : block));
     const reorder = (index: number, direction: -1 | 1) => setBlocks(current => { const target = index + direction; if (target < 0 || target >= current.length) return current; const copy = [...current]; [copy[index], copy[target]] = [copy[target], copy[index]]; return copy.map((block, order) => ({ ...block, order })); });
     const remove = (id: number) => setBlocks(current => current.filter(block => block.id !== id).map((block, order) => ({ ...block, order })));
-    const add = () => setBlocks(current => [...current, createLessonBlock(type, nextBlockId(current), current.length)]);
+    const add = (type: LessonBlock['type']) => { setSaved(false); setBlocks(current => [...current, createLessonBlock(type, nextBlockId(current), current.length)]); };
     const save = async () => {
         setShowIssues(true);
-        if (issues.length || saveInFlight.current) return;
+        if (issues.length || saveInFlight.current || !vocabulary) return false;
+        if (!vocabularySchema.safeParse(vocabulary).success) { setError('Заповніть слово та переклад у кожній картці словника.'); return false; }
         saveInFlight.current = true; setSaving(true); setError(''); setSaved(false);
         try {
             await saveLesson(lessonId, title, blocks);
+            if (vocabulary) {
+                const updated = await saveLessonVocabulary(lessonId, vocabulary);
+                if (mounted.current) setVocabulary(updated);
+            }
             if (mounted.current) setSaved(true);
+            return true;
         } catch (reason) {
             if (mounted.current) setError(asyncErrorMessage(reason, 'Не вдалося зберегти урок. Зміни залишилися на екрані — спробуйте ще раз.'));
+            return false;
         } finally {
             saveInFlight.current = false;
             if (mounted.current) setSaving(false);
         }
     };
     return <ProductPage>
-        <PageHeader eyebrow="Конструктор уроку" title="Редактор." description={`Ревізія ${lesson.revision}. Невалідний блок не можна зберегти.`} onBack={() => back({ name: 'teacher-lessons', courseId: lesson.courseId })} action={<button type="button" onClick={() => navigate({ name: 'teacher-preview', lessonId })} aria-label="Передпоказ уроку" className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-line bg-surface text-accent"><Icon name="eye" /></button>} />
+        <PageHeader eyebrow="Конструктор уроку" title="Редактор." description="Додавайте блоки, а слова для карток — у словник уроку." onBack={() => back({ name: 'teacher-lessons', courseId: lesson.courseId })} action={<button type="button" disabled={saving || !vocabulary} onClick={() => void save().then(ok => { if (ok) navigate({ name: 'teacher-preview', lessonId }); })} aria-label="Передпоказ уроку" title="Зберегти й переглянути" className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-line bg-surface text-accent"><Icon name="eye" /></button>} />
+        <fieldset disabled={saving}>
+        <div className="sticky top-0 z-20 mt-3 flex gap-2 rounded-xl bg-white p-2"><Button disabled={saving || !vocabulary} onClick={() => void save()}>Зберегти урок</Button><Button tone="secondary" onClick={() => document.getElementById('lesson-vocabulary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>📖 Словник / картки</Button></div>
         <Card className="mt-5 p-5"><Field label="Назва уроку"><input value={title} onChange={event => { setTitle(event.currentTarget.value); setSaved(false); }} className={inputClass} /></Field></Card>
         {showIssues && issues.length > 0 && <Card className="mt-3 border-alert/20 bg-alert/8 p-4"><strong className="text-[12px] font-black text-alert">Чернетка ще не готова</strong><ul className="mt-2 list-disc space-y-1 pl-5 text-[11px] font-semibold text-alert">{issues.map((issue, index) => <li key={`${issue.blockId}-${index}`}>{issue.blockId ? `Блок ${blocks.findIndex(block => block.id === issue.blockId) + 1}: ` : ''}{issue.message}</li>)}</ul></Card>}
         <div className="mt-3"><AsyncFeedback error={error} /></div>
         <div className="mt-4 space-y-3">{blocks.map((block, index) => <Card key={block.id} className="p-4"><div className="mb-4 flex items-center gap-2"><span className="font-mono text-[9px] font-bold text-text-faint">{String(index + 1).padStart(2, '0')}</span><StatusPill tone={block.type === 'unsupported' ? 'warm' : 'blue'}>{blockNames[block.type]}</StatusPill><div className="ml-auto flex gap-1"><button type="button" disabled={index === 0} onClick={() => reorder(index, -1)} aria-label="Перемістити блок вгору" className="h-8 w-8 rounded-[9px] border border-line bg-surface text-[13px] font-black disabled:opacity-30">↑</button><button type="button" disabled={index === blocks.length - 1} onClick={() => reorder(index, 1)} aria-label="Перемістити блок вниз" className="h-8 w-8 rounded-[9px] border border-line bg-surface text-[13px] font-black disabled:opacity-30">↓</button><button type="button" onClick={() => remove(block.id)} aria-label="Видалити блок" className="flex h-8 w-8 items-center justify-center rounded-[9px] text-alert"><Icon name="trash" className="h-4 w-4" /></button></div></div><BlockEditor block={block} update={patch => { update(block.id, patch); setSaved(false); }} /></Card>)}</div>
-        <Card className="mt-3 p-4"><Field label="Новий блок"><div className="flex gap-2"><select value={type} onChange={event => setType(event.currentTarget.value as LessonBlock['type'])} className={`${inputClass} min-w-0 flex-1`}>{addableTypes.map(value => <option key={value} value={value}>{blockNames[value]}</option>)}</select><Button icon="plus" onClick={add}>Додати</Button></div></Field></Card>
-        <Button className="mt-3 w-full" disabled={saving} onClick={() => void save()}>{saving ? 'Збереження…' : saved ? 'Чернетку збережено' : `Зберегти ${blocks.length} блоків`}</Button>
+        <Card className="mt-3 p-4"><h2 className="mb-3 font-bold">Додати блок</h2><div className="grid grid-cols-2 gap-2">{addableTypes.map(value => <Button key={value} tone="secondary" onClick={() => add(value)}>+ {blockNames[value]}</Button>)}</div></Card>
+        {vocabulary ? <LessonVocabularyEditor lessonId={lessonId} value={vocabulary} onChange={value => { setVocabulary(value); setSaved(false); }} /> : <p id="lesson-vocabulary" role={vocabularyError ? 'alert' : 'status'} className="mt-4 text-sm">{vocabularyError || 'Завантаження словника…'}</p>}
+        <Button className="mt-3 w-full" disabled={saving || !vocabulary} onClick={() => void save()}>{saving ? 'Збереження…' : saved ? 'Урок і словник збережено' : 'Зберегти урок і словник'}</Button>
+        </fieldset>
     </ProductPage>;
 };

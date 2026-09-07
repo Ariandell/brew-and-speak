@@ -15,6 +15,7 @@ test('sandbox migration plan prepares all canonical module tables and is repeata
     assert.deepEqual(await applySandboxMigrationPlan(database), [
       'v3-001-sandbox-module-schema',
       'v3-002-lesson-overlays',
+      'v3-003-lesson-vocabulary',
     ]);
     assert.deepEqual(await applySandboxMigrationPlan(database), []);
     const tables = await database.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'v3_%'");

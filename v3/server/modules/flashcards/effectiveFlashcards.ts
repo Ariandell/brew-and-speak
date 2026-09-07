@@ -39,14 +39,27 @@ export async function listEffectiveFlashcards(
     // The progress key precedes the IN arguments in SQL.
     args: [user.telegramId, ...lessonIds],
   });
-  const ids = result.rows.map(row => num(row.id));
+  const vocabulary = await writeDatabase.execute({
+    sql: `SELECT lesson_id, items_json FROM v3_lesson_vocabulary WHERE lesson_id IN (${placeholders})`, args: lessonIds,
+  });
+  const overridden = new Set(vocabulary.rows.map(row => num(row.lesson_id)));
+  const effectiveRows: Record<string, unknown>[] = result.rows.filter(row => !overridden.has(num(row.lesson_id)));
+  const legacyById = new Map(result.rows.map(row => [num(row.id), row]));
+  for (const row of vocabulary.rows) {
+    const lessonId = num(row.lesson_id);
+    const title = path.items.find(item => item.lessonId === lessonId)?.title ?? '';
+    const items = JSON.parse(String(row.items_json)) as Array<{ id: number; front: string; back: string }>;
+    for (const item of items) effectiveRows.push({ ...legacyById.get(item.id), id: item.id, lesson_id: lessonId,
+      lesson_title: title, word: item.front, translation: item.back });
+  }
+  const ids = effectiveRows.map(row => num(row.id));
   const overlay = ids.length ? await writeDatabase.execute({
     sql: `SELECT flashcard_id, times_shown, times_correct, times_wrong, ease_factor, interval_days, next_review_at
       FROM v3_flashcard_progress WHERE user_id = ? AND flashcard_id IN (${ids.map(() => '?').join(',')})`,
     args: [user.id, ...ids],
   }) : { rows: [] };
   const byId = new Map(overlay.rows.map(row => [num(row.flashcard_id), row]));
-  const cards = result.rows.map(row => {
+  const cards = effectiveRows.map(row => {
     const progress = byId.get(num(row.id)) ?? row;
     return {
       id: num(row.id), lessonId: num(row.lesson_id), lessonTitle: String(row.lesson_title ?? ''),

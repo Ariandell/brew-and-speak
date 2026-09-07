@@ -46,14 +46,14 @@ export const initializeSandboxSrsSchema = async (database: SandboxWriteDatabase)
   await database.batch(schemaStatements);
 };
 
-const stateFor = async (database: SandboxWriteDatabase, userId: number, flashcardId: number): Promise<Partial<SrsState>> => {
+const stateFor = async (database: SandboxWriteDatabase, userId: number, flashcardId: number, initialState: Partial<SrsState> = {}): Promise<Partial<SrsState>> => {
   const result = await database.execute({
     sql: `SELECT times_shown, times_correct, times_wrong, ease_factor, interval_days, next_review_at
       FROM v3_flashcard_progress WHERE user_id = ? AND flashcard_id = ?`,
     args: [userId, flashcardId],
   });
   const row = result.rows[0] as unknown as Record<string, unknown> | undefined;
-  if (!row) return {};
+  if (!row) return initialState;
   return {
     timesShown: numberValue(row.times_shown),
     timesCorrect: numberValue(row.times_correct),
@@ -66,7 +66,7 @@ const stateFor = async (database: SandboxWriteDatabase, userId: number, flashcar
 
 export const reviewSandboxFlashcard = async (
   database: SandboxWriteDatabase,
-  input: { userId: number; flashcardId: number; correct: boolean; idempotencyKey: string; now: Date },
+  input: { userId: number; flashcardId: number; correct: boolean; idempotencyKey: string; now: Date; initialState?: Partial<SrsState> },
 ): Promise<SandboxSrsReview> => {
   const existingKey = await database.execute({
     sql: 'SELECT user_id, flashcard_id, response_json FROM v3_flashcard_review_keys WHERE idempotency_key = ?',
@@ -80,7 +80,7 @@ export const reviewSandboxFlashcard = async (
     return JSON.parse(String(existingRow.response_json)) as SandboxSrsReview;
   }
 
-  const result = applySrsReview(await stateFor(database, input.userId, input.flashcardId), input.correct, input.now);
+  const result = applySrsReview(await stateFor(database, input.userId, input.flashcardId, input.initialState), input.correct, input.now);
   const response: SandboxSrsReview = {
     flashcardId: input.flashcardId,
     timesShown: result.timesShown,

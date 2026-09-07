@@ -9,16 +9,21 @@ export class ContentInvalidError extends Error {
   }
 }
 
-const allowedTags = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4'];
+const allowedTags = ['div', 'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'blockquote'];
 
-export const sanitizeRichText = (value: unknown): string => sanitizeHtml(
-  typeof value === 'string' ? value : '',
+export const sanitizeRichText = (value: unknown): string => {
+  const raw = typeof value === 'string' ? value : '';
+  // Legacy plain text and contentEditable divs carry meaningful line breaks.
+  const html = /<\/?[a-z][^>]*>/i.test(raw) ? raw : raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
+  return sanitizeHtml(
+  html,
   {
     allowedTags,
     allowedAttributes: {},
     allowedSchemes: [],
   },
 );
+};
 
 const objectContent = (block: LegacyLessonBlock): Record<string, unknown> => {
   let parsed: unknown;

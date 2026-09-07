@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeLessonBlock } from './normalizeBlock.js';
+import { normalizeLessonBlock, sanitizeRichText } from './normalizeBlock.js';
 import type { LegacyLessonBlock } from '../legacy/repositories.js';
 
 const block = (type: string, content: unknown): LegacyLessonBlock => ({
@@ -8,6 +8,12 @@ const block = (type: string, content: unknown): LegacyLessonBlock => ({
   type,
   rawContent: JSON.stringify(content),
   order: 0,
+});
+
+test('preserves legacy plain text lines and contentEditable paragraph boundaries', () => {
+  assert.equal(sanitizeRichText('happy — щасливий\nexcited — схвильований'), 'happy — щасливий<br />excited — схвильований');
+  assert.equal(sanitizeRichText('First<div>Second</div><div><br></div><div><u>Third</u></div>'), 'First<div>Second</div><div><br /></div><div><u>Third</u></div>');
+  assert.equal(sanitizeRichText('<div onclick="bad()">Safe<script>bad()</script></div>'), '<div>Safe</div>');
 });
 
 test('normalizes legacy content and removes HTML attributes', () => {

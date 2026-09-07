@@ -78,6 +78,25 @@ const withApp = async (role: 'student' | 'teacher', run: (baseUrl: string, datab
   }
 };
 
+test('teacher vocabulary is durable, revision protected and student writes are denied', async () => {
+  await withApp('teacher', async baseUrl => {
+    const headers = { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': signedInitData() };
+    const url = `${baseUrl}/api/v2/sandbox/teacher/lessons/10/vocabulary`;
+    assert.deepEqual(await (await fetch(url, { headers })).json(), { revision: 0, items: [] });
+    const input = { revision: 0, items: [{ id: 1000000000001, front: 'happy', back: 'щасливий' }] };
+    const save = (body: unknown) => fetch(url, { headers, method: 'PUT', body: JSON.stringify(body) });
+    assert.equal((await save(input)).status, 200);
+    assert.equal((await save(input)).status, 409);
+    const updated = { revision: 1, items: [{ ...input.items[0], back: 'радісний' }] };
+    assert.equal((await save(updated)).status, 200);
+    assert.deepEqual(await (await fetch(url, { headers })).json(), { ...updated, revision: 2 });
+  });
+  await withApp('student', async baseUrl => {
+    const response = await fetch(`${baseUrl}/api/v2/sandbox/teacher/lessons/10/vocabulary`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': signedInitData() }, body: JSON.stringify({ revision: 0, items: [] }) });
+    assert.equal(response.status, 403);
+  });
+});
+
 test('sandbox teacher editor saves typed draft and rejects stale revision', async () => {
   await withApp('teacher', async (baseUrl) => {
     const headers = { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': signedInitData() };

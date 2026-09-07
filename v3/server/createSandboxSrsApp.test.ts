@@ -48,15 +48,25 @@ test('sandbox SRS API scopes card access and honors idempotency', async () => {
     const first = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ correct: true, idempotencyKey: 'srs-1' }) });
     assert.equal(first.status, 201);
     const firstBody = await first.json();
-    assert.equal(firstBody.intervalDays, 1);
+    assert.equal(firstBody.intervalDays, 3);
+    assert.equal(firstBody.timesShown, 2);
     const dictionary = await fetch(`${baseUrl(address.port)}/api/v2/sandbox/me/dictionary`, { headers });
     assert.equal(dictionary.status, 200);
-    assert.equal((await dictionary.json()).items[0].intervalDays, 1);
+    assert.equal((await dictionary.json()).items[0].intervalDays, 3);
     const retry = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ correct: false, idempotencyKey: 'srs-1' }) });
     assert.equal(retry.status, 201);
     assert.deepEqual(await retry.json(), firstBody);
     const unavailable = await fetch(`${baseUrl(address.port)}/api/v2/sandbox/me/flashcards/999/review`, { method: 'POST', headers, body: JSON.stringify({ correct: true, idempotencyKey: 'srs-2' }) });
     assert.equal(unavailable.status, 404);
+    await database.execute({ sql: 'INSERT INTO v3_lesson_vocabulary (lesson_id, revision, items_json) VALUES (?, 1, ?)', args: [10, JSON.stringify([
+      { id: 500, front: 'brew coffee', back: 'заварювати каву' }, { id: 1000000000001, front: 'happy', back: 'щасливий' },
+    ])] });
+    const edited = await (await fetch(`${baseUrl(address.port)}/api/v2/sandbox/me/dictionary`, { headers })).json();
+    assert.equal(edited.items.length, 2);
+    assert.equal(edited.items.find((card: { flashcardId: number }) => card.flashcardId === 500).front, 'brew coffee');
+    assert.equal(edited.items.find((card: { flashcardId: number }) => card.flashcardId === 500).timesShown, firstBody.timesShown);
+    const newReview = await fetch(`${baseUrl(address.port)}/api/v2/sandbox/me/flashcards/1000000000001/review`, { method: 'POST', headers, body: JSON.stringify({ correct: true, idempotencyKey: 'new-vocabulary' }) });
+    assert.equal(newReview.status, 201);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     database.close();

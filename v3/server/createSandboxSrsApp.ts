@@ -98,13 +98,15 @@ export const createSandboxSrsApp = (dependencies: SandboxSrsAppDependencies): Ex
       if (!current) return errorBody('FORBIDDEN', 'SRS доступний лише учню', 403, response);
       const { user } = current;
       const available = await listEffectiveFlashcards(dependencies.readDatabase, dependencies.writeDatabase, user, current.courseId);
-      if (!available.some((card) => card.id === flashcardId)) return errorBody('NOT_FOUND', 'Flashcard недоступний', 404, response);
+      const card = available.find(card => card.id === flashcardId);
+      if (!card) return errorBody('NOT_FOUND', 'Flashcard недоступний', 404, response);
       const result = await reviewSandboxFlashcard(dependencies.writeDatabase, {
         userId: user.id,
         flashcardId,
         correct: parsed.data.correct,
         idempotencyKey: parsed.data.idempotencyKey,
         now: new Date(),
+        initialState: { ...card, nextReviewAt: card.nextReviewAt ? new Date(card.nextReviewAt) : null },
       });
       response.status(201).json(srsReviewResponseSchema.parse(result));
     } catch (error) {

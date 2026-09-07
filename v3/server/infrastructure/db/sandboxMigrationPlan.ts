@@ -12,6 +12,7 @@ import { initializeSandboxLessonDraftSchema } from '../../modules/teacher/sandbo
 import { initializeSandboxLessonSchema, lessonSchemaStatements } from '../../modules/lessons/sandboxLessonRepository.js';
 import { initializeSandboxAssetSchema } from '../../modules/media/sandboxAssetRepository.js';
 import { PRODUCTION_SCHEMA_PLAN } from './schemaVersion.js';
+import { vocabularySchemaSql } from '../../modules/teacher/lessonVocabularyRepository.js';
 
 const migrations: readonly SandboxMigration[] = [{
   id: 'v3-001-sandbox-module-schema',
@@ -24,6 +25,9 @@ const migrations: readonly SandboxMigration[] = [{
 }, {
   id: 'v3-002-lesson-overlays',
   statements: lessonSchemaStatements,
+}, {
+  id: 'v3-003-lesson-vocabulary',
+  statements: [vocabularySchemaSql],
 }];
 
 /**

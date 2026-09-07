@@ -5,7 +5,8 @@ const ignored = new Set(['node_modules', 'dist', '.sandbox', '.git']);
 const secretPatterns = [
   /AQ\.[A-Za-z0-9_-]{20,}/,
   /AIza[A-Za-z0-9_-]{20,}/,
-  /X-goog-api-key/i,
+  // A header name is not a secret; flag hard-coded header values, not env-backed server calls.
+  /['"]X-goog-api-key['"]\s*:\s*['"][^'"]+['"]/i,
   /TELEGRAM_BOT_TOKEN\s*[:=]\s*['"]/,
 ];
 const matches: string[] = [];

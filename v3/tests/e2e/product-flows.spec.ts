@@ -141,9 +141,9 @@ test('lesson progress and attempts are isolated between students', async ({ page
 
 test('teacher editor refuses an unanswerable exercise', async ({ page }) => {
     await openFresh(page, '/?demo=teacher#/teacher/lessons/1');
-    const correct = page.getByRole('textbox', { name: 'Правильна відповідь' }).first();
-    await correct.fill('not-an-option');
-    await page.getByRole('button', { name: /Зберегти 8 блоків/ }).click();
+    const correct = page.getByRole('textbox', { name: 'Варіант 1', exact: true }).first();
+    await page.getByRole('button', { name: 'Видалити варіант 1', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Зберегти урок і словник', exact: true }).click();
     await expect(page.getByText(/Правильна відповідь має бути серед варіантів/)).toBeVisible();
     await page.reload();
     await expect(correct).toHaveValue('I have finished my coffee.');
@@ -213,8 +213,8 @@ test('flashcard queue repeats mistakes, finishes due cards and isolates students
 test('a valid lesson draft survives refresh and is visible in teacher preview', async ({ page }) => {
     await openFresh(page, '/?demo=teacher#/teacher/lessons/1');
     await page.getByRole('textbox', { name: 'Назва уроку' }).fill('Present Perfect · перевірено');
-    await page.getByRole('button', { name: /Зберегти 8 блоків/ }).click();
-    await expect(page.getByRole('button', { name: 'Чернетку збережено' })).toBeVisible();
+    await page.getByRole('button', { name: 'Зберегти урок і словник', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Урок і словник збережено' })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('textbox', { name: 'Назва уроку' })).toHaveValue('Present Perfect · перевірено');
     await page.getByRole('button', { name: 'Передпоказ уроку' }).click();

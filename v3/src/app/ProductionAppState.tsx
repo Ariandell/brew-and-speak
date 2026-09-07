@@ -207,6 +207,9 @@ export const ProductionAppStateProvider = ({ children }: { children: ReactNode }
             if (student.isBlocked) await api.unblockStudent(studentId); else await api.blockStudent(studentId);
             await refresh();
         },
+        loadLessonVocabulary: api.loadLessonVocabulary,
+        generateLessonVocabulary: api.generateLessonVocabulary,
+        saveLessonVocabulary: api.saveLessonVocabulary,
         saveLesson: async (lessonId, title, blocks) => {
             const lesson = state.lessons.find(item => item.id === lessonId);
             if (!lesson) throw new Error('Урок не знайдено');

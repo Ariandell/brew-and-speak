@@ -1,5 +1,6 @@
 import { createElement, useMemo, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
+import { sanitizeRichText } from '../lib/richText';
 
 export const Card = ({ className = '', ...props }: HTMLAttributes<HTMLDivElement>) => (
     <div className={`glass-panel rounded-[22px] border border-white/75 bg-surface/94 shadow-card ${className}`} {...props} />
@@ -80,11 +81,11 @@ export const Field = ({ label, hint, children }: { label: string; hint?: string;
 
 export const inputClass = 'w-full rounded-[14px] border border-line bg-surface px-4 py-3 text-[14px] font-semibold text-text outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15 placeholder:text-text-faint';
 
-const ALLOWED_TAGS = new Set(['p', 'b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li', 'h2', 'h3', 'blockquote', 'br']);
+const ALLOWED_TAGS = new Set(['div', 'p', 'b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'br']);
 
 const safeRichNodes = (html: string): ReactNode[] => {
     if (typeof DOMParser === 'undefined') return [html.replace(/<[^>]+>/g, '')];
-    const document = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+    const document = new DOMParser().parseFromString(`<body>${sanitizeRichText(html)}</body>`, 'text/html');
     let key = 0;
     const walk = (node: Node): ReactNode => {
         if (node.nodeType === Node.TEXT_NODE) return node.textContent;
@@ -99,5 +100,5 @@ const safeRichNodes = (html: string): ReactNode[] => {
 
 export const RichText = ({ html, className = '' }: { html: string; className?: string }) => {
     const content = useMemo(() => safeRichNodes(html), [html]);
-    return <div className={`rich-text text-[14px] font-medium leading-[1.7] text-text-soft ${className}`}>{content}</div>;
+    return <div className={`rich-text whitespace-pre-wrap text-[14px] font-medium leading-[1.7] text-text-soft ${className}`}>{content}</div>;
 };

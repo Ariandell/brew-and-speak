@@ -4,6 +4,7 @@ import type { SandboxWriteDatabase } from '../../infrastructure/db/sandboxWriteS
 import type { LegacyLesson, LegacyLessonSummary } from '../legacy/repositories.js';
 import { normalizeLessonBlocks } from './normalizeBlock.js';
 import { getSandboxLessonDraft } from '../teacher/sandboxLessonDraftRepository.js';
+import { vocabularySchemaSql } from '../teacher/lessonVocabularyRepository.js';
 
 export type EffectiveLesson = {
   id: number;
@@ -42,7 +43,7 @@ const numberValue = (value: unknown): number => typeof value === 'number' ? valu
 const stringValue = (value: unknown): string => typeof value === 'string' ? value : '';
 
 export const initializeSandboxLessonSchema = async (database: SandboxWriteDatabase): Promise<void> => {
-  await database.batch(lessonSchemaStatements);
+  await database.batch([...lessonSchemaStatements, vocabularySchemaSql]);
 };
 
 const getNewLessonRow = async (database: SandboxWriteDatabase, lessonId: number) => {
@@ -178,10 +179,11 @@ export const updateSandboxLesson = async (
 const noLinkedDataSql = `NOT EXISTS (SELECT 1 FROM user_progress WHERE lesson_id = ?) AND
   NOT EXISTS (SELECT 1 FROM homework_submissions WHERE lesson_id = ?) AND
   NOT EXISTS (SELECT 1 FROM flashcards WHERE lesson_id = ?) AND
+  NOT EXISTS (SELECT 1 FROM v3_lesson_vocabulary WHERE lesson_id = ? AND json_array_length(items_json) > 0) AND
   NOT EXISTS (SELECT 1 FROM v3_attempts WHERE lesson_id = ?) AND
   NOT EXISTS (SELECT 1 FROM v3_homework_submissions WHERE lesson_id = ?)`;
 
-const linkArgs = (lessonId: number) => [lessonId, lessonId, lessonId, lessonId, lessonId];
+const linkArgs = (lessonId: number) => [lessonId, lessonId, lessonId, lessonId, lessonId, lessonId];
 
 export const deleteSandboxLesson = async (
   database: SandboxWriteDatabase,

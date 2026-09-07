@@ -14,6 +14,7 @@ export const TeacherDashboard = () => {
         { title: 'Домашні', copy: 'Перевірити роботи', icon: 'homework', route: 'teacher-homework', badge: pending },
         { title: 'Учні', copy: 'Прогрес і доступ', icon: 'students', route: 'teacher-students' },
         { title: 'Курси', copy: 'Уроки та редактор', icon: 'course', route: 'teacher-courses' },
+        { title: 'Словник і картки', copy: 'Обери курс → урок → Словник', icon: 'course', route: 'teacher-courses' },
         { title: 'Розсилка', copy: 'Фото за розкладом', icon: 'broadcast', route: 'teacher-broadcasts' },
         { title: 'Статистика', copy: 'Зведення по курсах', icon: 'chart', route: 'teacher-statistics' },
     ];

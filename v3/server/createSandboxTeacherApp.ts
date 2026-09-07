@@ -1,5 +1,9 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import { vocabularySchema } from '../src/api/vocabularyContracts.js';
+import { loadLessonVocabulary, saveLessonVocabulary } from './modules/teacher/lessonVocabularyRepository.js';
+import { LessonDraftValidationError } from './modules/lessons/validateDraft.js';
+import { generateVocabulary } from './modules/teacher/generateVocabulary.js';
 import {
   lessonResponseSchema,
   teacherStatisticsResponseSchema,
@@ -65,6 +69,47 @@ export const createSandboxTeacherApp = (dependencies: SandboxTeacherAppDependenc
     } catch (error) {
       next(error);
     }
+  });
+
+  app.route('/api/v2/sandbox/teacher/lessons/:lessonId/vocabulary')
+    .all(auth)
+    .get(async (request, response, next) => {
+      try {
+        const context = await teacherContext(response);
+        if (!context) return errorBody('FORBIDDEN', 'Недостатньо прав викладача', 403, response);
+        const id = lessonIdOf(request);
+        if (!id || !await getEffectiveLesson(dependencies.writeDatabase, id, await context.repositories.getLesson(id))) return errorBody('NOT_FOUND', 'Урок не знайдено', 404, response);
+        response.json(await loadLessonVocabulary(dependencies.readDatabase, dependencies.writeDatabase, id));
+      } catch (error) { next(error); }
+    })
+    .put(async (request, response, next) => {
+      try {
+        const context = await teacherContext(response);
+        if (!context) return errorBody('FORBIDDEN', 'Недостатньо прав викладача', 403, response);
+        const id = lessonIdOf(request);
+        const parsed = vocabularySchema.safeParse(request.body);
+        if (!id || !parsed.success || new Set(parsed.data.items.map(item => item.id)).size !== parsed.data.items.length) return errorBody('VALIDATION_FAILED', 'Перевірте слова та переклади', 400, response);
+        if (!await getEffectiveLesson(dependencies.writeDatabase, id, await context.repositories.getLesson(id))) return errorBody('NOT_FOUND', 'Урок не знайдено', 404, response);
+        const current = await loadLessonVocabulary(dependencies.readDatabase, dependencies.writeDatabase, id);
+        const ids = new Set(current.items.map(item => item.id));
+        // Newly authored cards use safe high IDs; legacy IDs may only be retained in their own lesson.
+        if (parsed.data.items.some(item => !ids.has(item.id) && item.id < 1000000000000)) return errorBody('VALIDATION_FAILED', 'Некоректний ID нової картки', 400, response);
+        if (!await saveLessonVocabulary(dependencies.writeDatabase, id, parsed.data)) return errorBody('CONFLICT', 'Словник вже змінено в іншій вкладці. Відкрийте урок знову.', 409, response);
+        response.json({ ...parsed.data, revision: parsed.data.revision + 1 });
+      } catch (error) { next(error); }
+    });
+
+  app.post('/api/v2/sandbox/teacher/lessons/:lessonId/vocabulary/generate', auth, async (request, response, next) => {
+    try {
+      const context = await teacherContext(response);
+      if (!context) return errorBody('FORBIDDEN', 'Недостатньо прав викладача', 403, response);
+      const id = lessonIdOf(request);
+      if (!id) return errorBody('VALIDATION_FAILED', 'Некоректний урок', 400, response);
+      const lesson = await getEffectiveLesson(dependencies.writeDatabase, id, await context.repositories.getLesson(id));
+      if (!lesson) return errorBody('NOT_FOUND', 'Урок не знайдено', 404, response);
+      try { response.json(await generateVocabulary(lesson)); }
+      catch { return errorBody('INTERNAL', 'Не вдалося згенерувати слова. Додайте їх вручну, списком або спробуйте пізніше.', 503, response); }
+    } catch (error) { next(error); }
   });
 
   app.get('/api/v2/sandbox/teacher/lessons/:lessonId', auth, async (request, response, next) => {
@@ -167,6 +212,7 @@ export const createSandboxTeacherApp = (dependencies: SandboxTeacherAppDependenc
   app.use((_request, response) => errorBody('NOT_FOUND', 'Sandbox teacher API-маршрут не знайдено', 404, response));
   app.use((error: unknown, _request: Request, response: Response, next: NextFunction) => {
     if (response.headersSent) return next(error);
+    if (error instanceof LessonDraftValidationError) return errorBody('VALIDATION_FAILED', 'Перевірте блоки уроку: заповніть варіанти, правильні відповіді та приберіть дублікати.', 400, response);
     console.error(`[v3 sandbox teacher api] ${error instanceof Error ? error.message : String(error)}`);
     errorBody('INTERNAL', 'Внутрішня помилка сервера', 500, response);
   });

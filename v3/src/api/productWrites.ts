@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { generatedVocabularySchema, vocabularySchema, type LessonVocabulary } from './vocabularyContracts.js';
 import type { ApiClient } from './client.js';
 import * as c from './contracts.js';
 import { createHomeworkApi, type SubmitHomeworkInput } from './homeworkApi.js';
@@ -56,6 +57,9 @@ export function createProductWrites(client: ApiClient) {
         return metadata;
     };
     return {
+        loadLessonVocabulary: (lessonId: number) => read(`/teacher/lessons/${id.parse(lessonId)}/vocabulary`, vocabularySchema),
+        generateLessonVocabulary: (lessonId: number) => send(`/teacher/lessons/${id.parse(lessonId)}/vocabulary/generate`, generatedVocabularySchema),
+        saveLessonVocabulary: (lessonId: number, input: LessonVocabulary) => send(`/teacher/lessons/${id.parse(lessonId)}/vocabulary`, vocabularySchema, vocabularySchema.parse(input), undefined, 'PUT'),
         async enroll(input: z.input<typeof c.enrollmentRequestSchema>, signal?: AbortSignal) {
             return send('/me/enrollment', c.enrollmentResponseSchema, c.enrollmentRequestSchema.strict().parse(input), signal);
         },
