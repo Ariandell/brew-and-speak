@@ -1,5 +1,4 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { createApp } from './createApp.js';
 import { createSandboxAttemptApp } from './createSandboxAttemptApp.js';
 import { createSandboxCommunicationApp } from './createSandboxCommunicationApp.js';
@@ -20,8 +19,6 @@ import { activityStreakResponseSchema } from '../src/api/contracts.js';
 import { meResponseSchema } from '../src/api/contracts.js';
 import { getSandboxEnrollment } from './modules/courses/sandboxEnrollmentRepository.js';
 import { isSandboxUserBlocked } from './modules/teacher/sandboxStudentControlRepository.js';
-import { collectLegacyInventory } from './infrastructure/db/legacyInventory.js';
-import { applyV3MigrationPlan } from './infrastructure/db/sandboxMigrationPlan.js';
 
 export type ProductionAppDependencies = {
   readDatabase?: ReadOnlyDatabase | null;
@@ -69,51 +66,6 @@ export const createProductionApp = (dependencies: ProductionAppDependencies = {}
   const app = express();
   app.disable('x-powered-by');
 
-  // Temporary, fail-closed cutover route. It is active only while a one-time
-  // deployment secret exists and refuses to migrate any database whose legacy
-  // fingerprint differs from the verified local backup.
-  app.all('/api/v2/internal/v3-cutover', async (request, response) => {
-    const expectedKey = process.env.V3_MIGRATION_KEY ?? '';
-    const suppliedKey = request.header('x-v3-migration-key') ?? '';
-    const authorized = expectedKey.length >= 32 && suppliedKey.length === expectedKey.length
-      && timingSafeEqual(Buffer.from(suppliedKey), Buffer.from(expectedKey));
-    if (!authorized) return response.status(404).json({ code: 'NOT_FOUND', message: 'Маршрут не знайдено', requestId: crypto.randomUUID() });
-    if (!readDatabase) return response.status(503).json({ code: 'INTERNAL', message: 'Database is not configured', requestId: crypto.randomUUID() });
-    try {
-      const before = await collectLegacyInventory(readDatabase);
-      const expectedFingerprint = '10d5961790e1951dfb1d91a6fe816522a059e20f84e6fbe64a88138d90f6bb64';
-      if (request.method === 'GET') return response.json({ inventory: before, matchesVerifiedBackup: before.contentFingerprintSha256 === expectedFingerprint });
-      if (request.method !== 'POST') return response.status(405).end();
-      if (before.contentFingerprintSha256 !== expectedFingerprint) {
-        return response.status(409).json({ code: 'CONFLICT', message: 'Production database does not match the verified backup', requestId: crypto.randomUUID(), inventory: before });
-      }
-      const migrationDatabase = dependencies.writeDatabase ?? createWriteDatabaseFromEnv();
-      if (!migrationDatabase) throw new Error('Write database is not configured');
-      try {
-        const applied = await applyV3MigrationPlan(migrationDatabase);
-        const backupReference = 'brew-db-pre-v3-20260907.db:sha256:6A1B1D5BBE66E37CC4ECDF8BB8F2621B27EE2FB0B6DB0627D7245F15838ABAA7';
-        const beforeHash = createHash('sha256').update(JSON.stringify(before)).digest('hex');
-        await migrationDatabase.batch([{
-          sql: `INSERT INTO v3_backend_meta (key, value) VALUES ('migration_backup_reference', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value`, args: [backupReference],
-        }, {
-          sql: `INSERT INTO v3_backend_meta (key, value) VALUES ('legacy_inventory_before_sha256', ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value`, args: [beforeHash],
-        }]);
-        const after = await collectLegacyInventory(readDatabase);
-        if (JSON.stringify(before.rowCounts) !== JSON.stringify(after.rowCounts)
-          || before.contentFingerprintSha256 !== after.contentFingerprintSha256) {
-          throw new Error('Legacy content changed during additive migration');
-        }
-        return response.json({ status: 'ok', applied, beforeHash, backupReference, inventory: after });
-      } finally {
-        if (dependencies.writeDatabase === undefined) migrationDatabase.close();
-      }
-    } catch (error) {
-      console.error('[v3-cutover]', error);
-      return response.status(500).json({ code: 'INTERNAL', message: 'Cutover failed', requestId: crypto.randomUUID() });
-    }
-  });
 
   app.get('/api/v2/health', (_request, response) => {
     response.status(databaseConfigurationError ? 503 : 200).json({
