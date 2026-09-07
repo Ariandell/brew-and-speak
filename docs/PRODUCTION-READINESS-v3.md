@@ -1,12 +1,13 @@
 # English with Coffee V3 — production readiness
 
-Оновлено: 2026-09-06.
+Оновлено: 2026-09-07.
 
 ## Поточний висновок
 
-Код V3 підготовлений до **preview deployment та ручного smoke-тесту**, але ще не
-перемикає чинний production. Production Turso під час розробки не змінювалася,
-міграція не запускалася, деплой не виконувався.
+Код V3 розгорнутий у preview. Additive-міграцію production Turso виконано
+2026-09-07 після точного порівняння з перевіреним backup; записи ввімкнено для
+Preview і Production. Promotion нового дизайну на основний домен залишається
+окремим ручним рішенням після візуального погодження.
 
 Frontend працює через canonical `/api/v2`, а не через demo repository. Сервер
 перевіряє Telegram `initData`, сам визначає internal user ID, роль і блокування.
@@ -27,8 +28,8 @@ Frontend працює через canonical `/api/v2`, а не через demo re
 | Photo broadcasts і authenticated media | Готово |
 | Teacher dashboard, students, block/unblock, statistics | Готово |
 | Один WebGL canvas, 2D fallback, 5 перевірених поз | Готово |
-| Vercel build/rewrites/CSP | Підготовлено, не розгорнуто |
-| Additive migration V3_002 | Підготовлено, не запускалася |
+| Vercel build/rewrites/CSP | Preview розгорнуто |
+| Additive migration V3_002 | Виконано, legacy fingerprint збережено |
 
 ## Автоматична перевірка
 
