@@ -80,14 +80,25 @@ export const createProductionApp = (dependencies: ProductionAppDependencies = {}
   if (writesEnabled && readDatabase && writeDatabase && botToken && databaseUrl) {
     const schemaReady = writeDatabase.execute({
       sql: `SELECT value FROM v3_backend_meta WHERE key = 'schema_plan'`, args: [],
-    }).then(result => {
+    }).then(async result => {
       if (String(result.rows[0]?.value ?? '') !== PRODUCTION_SCHEMA_PLAN) {
         throw new Error('V3 production schema is not prepared');
       }
+      await writeDatabase.execute('SELECT 1 FROM v3_lesson_vocabulary LIMIT 1');
     });
     // Attach a handler immediately so a cold-start rejection cannot become an
     // unhandled promise before the first request arrives.
     void schemaReady.catch(() => undefined);
+    app.get('/api/v2/health/schema', async (_request, response) => {
+      try {
+        await schemaReady;
+        response.json({ status: 'ok', schemaPlan: PRODUCTION_SCHEMA_PLAN, vocabulary: 'ready' });
+      } catch (error) {
+        console.error('[production-api] schema readiness failed', error);
+        response.status(503).json({ status: 'degraded', schemaPlan: PRODUCTION_SCHEMA_PLAN,
+          reason: error instanceof Error ? error.message : 'Database readiness check failed' });
+      }
+    });
     const shared = { readDatabase, writeDatabase, writeDatabaseUrl: databaseUrl, botToken,
       runtime: 'production' as const, schemaReady };
     const modules = {
@@ -103,7 +114,7 @@ export const createProductionApp = (dependencies: ProductionAppDependencies = {}
     };
     const auth = requireTelegramAuth({ botToken });
     app.use('/api/v2', async (request, response, next) => {
-      if (request.path === '/health') return next();
+      if (request.path === '/health' || request.path === '/health/schema') return next();
       try { await schemaReady; next(); }
       catch {
         response.status(503).json({ code: 'INTERNAL', message: 'V3 database schema is not prepared',
