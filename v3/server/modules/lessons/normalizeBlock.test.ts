@@ -12,6 +12,7 @@ const block = (type: string, content: unknown): LegacyLessonBlock => ({
 
 test('preserves legacy plain text lines and contentEditable paragraph boundaries', () => {
   assert.equal(sanitizeRichText('happy — щасливий\nexcited — схвильований'), 'happy — щасливий<br />excited — схвильований');
+  assert.equal(sanitizeRichText('<p>Вона встає.\nВона п’є каву.\nДля осіб I, You, We, They</p>'), '<p>Вона встає.<br />Вона п’є каву.<br />Для осіб I, You, We, They</p>');
   assert.equal(sanitizeRichText('First<div>Second</div><div><br></div><div><u>Third</u></div>'), 'First<div>Second</div><div><br /></div><div><u>Third</u></div>');
   assert.equal(sanitizeRichText('<div onclick="bad()">Safe<script>bad()</script></div>'), '<div>Safe</div>');
 });

@@ -14,7 +14,9 @@ const allowedTags = ['div', 'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol'
 export const sanitizeRichText = (value: unknown): string => {
   const raw = typeof value === 'string' ? value : '';
   // Legacy plain text and contentEditable divs carry meaningful line breaks.
-  const html = /<\/?[a-z][^>]*>/i.test(raw) ? raw : raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br>');
+  // Newlines remain meaningful even inside a legacy <p>; browsers otherwise collapse them.
+  const html = (/<\/?[a-z][^>]*>/i.test(raw) ? raw : raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
+    .replace(/\r?\n/g, '<br>');
   return sanitizeHtml(
   html,
   {

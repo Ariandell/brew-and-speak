@@ -272,7 +272,12 @@ test('teacher formats blocks and imports vocabulary that becomes student cards',
   await text.press('Enter');
   await page.keyboard.type('Другий абзац');
   await text.press('Control+a');
-  await page.getByRole('button', { name: 'Ж', exact: true }).last().click();
+  const toolbar = page.getByRole('toolbar', { name: 'Форматування виділеного тексту' });
+  await expect(toolbar).toBeVisible();
+  const selectionBox = await text.boundingBox();
+  const toolbarBox = await toolbar.boundingBox();
+  expect(selectionBox && toolbarBox && toolbarBox.y > selectionBox.y).toBeTruthy();
+  await toolbar.getByRole('button', { name: 'Ж', exact: true }).click();
   await page.getByText('Вставити список слів / з таблиці', { exact: true }).click();
   await page.getByRole('textbox', { name: 'Список слів' }).fill('happy — щасливий\nexcited — схвильований');
   await page.getByRole('button', { name: 'Додати список', exact: true }).click();

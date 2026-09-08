@@ -7,7 +7,7 @@ const DROP = new Set(['script', 'style', 'iframe', 'object', 'embed', 'link', 'm
 const escapeText = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const serialize = (nodes: ArrayLike<ChildNode>): string => Array.from(nodes).map(node => {
-    if (node.nodeType === Node.TEXT_NODE) return escapeText(node.textContent ?? '');
+    if (node.nodeType === Node.TEXT_NODE) return plainTextToHtml(node.textContent ?? '');
     if (node.nodeType !== Node.ELEMENT_NODE) return '';
     const element = node as Element;
     const source = element.tagName.toLowerCase();
