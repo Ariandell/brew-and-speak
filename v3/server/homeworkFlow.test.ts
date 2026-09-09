@@ -62,6 +62,11 @@ test('HTTP client → SQLite: real attachment, teacher feedback and cross-studen
         await teacher.grade(submission.submissionId, 8, 'Well done');
         const returned = (await student.list(false)).items[0];
         assert.equal(returned.grade, 8); assert.equal(returned.teacherComment, 'Well done');
+        const resubmitted = await student.submit({ ...input, answerHtml: 'Corrected answer.' });
+        assert.equal(resubmitted.status, 'pending');
+        assert.equal(resubmitted.grade, null);
+        assert.equal(resubmitted.teacherComment, null);
+        assert.equal(resubmitted.answerHtml, 'Corrected answer.');
         await teacher.grade(submission.submissionId, 9, 'Updated feedback');
         assert.equal((await student.list(false)).items[0].grade, 9);
         assert.equal(await (await student.download(assetId)).text(), text);

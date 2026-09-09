@@ -143,22 +143,23 @@ export const submitSandboxHomework = async (
 
   if (existing) {
     const ordered = (assets: readonly HomeworkAssetReference[]) => [...assets].sort((a, b) => a.assetId.localeCompare(b.assetId));
-    if (existing.answerText === input.answerText && JSON.stringify(ordered(existing.assets)) === JSON.stringify(ordered(uniqueAssets))) return existing;
-    if (existing.status === 'graded') throw new HomeworkConflictError('Graded homework cannot be changed');
-    const pending = `EXISTS (SELECT 1 FROM v3_homework_submissions WHERE id = ? AND user_id = ? AND status = 'pending')`;
+    if (existing.status === 'pending' && existing.answerText === input.answerText && JSON.stringify(ordered(existing.assets)) === JSON.stringify(ordered(uniqueAssets))) return existing;
+    const owned = `EXISTS (SELECT 1 FROM v3_homework_submissions WHERE id = ? AND user_id = ? AND lesson_id = ?)`;
     const updates: InStatement[] = [{
-      sql: `UPDATE v3_homework_submissions SET answer_text = ? WHERE id = ? AND user_id = ? AND status = 'pending'`,
-      args: [input.answerText, input.submissionId, input.userId],
+      sql: `UPDATE v3_homework_submissions
+        SET answer_text = ?, status = 'pending', grade = NULL, teacher_comment = NULL, graded_at = NULL
+        WHERE id = ? AND user_id = ? AND lesson_id = ?`,
+      args: [input.answerText, input.submissionId, input.userId, input.lessonId],
     }, {
-      sql: `DELETE FROM v3_homework_asset_refs WHERE submission_id = ? AND ${pending}`,
-      args: [input.submissionId, input.submissionId, input.userId],
+      sql: `DELETE FROM v3_homework_asset_refs WHERE submission_id = ? AND ${owned}`,
+      args: [input.submissionId, input.submissionId, input.userId, input.lessonId],
     }, ...uniqueAssets.map(asset => ({
       sql: `INSERT INTO v3_homework_asset_refs (submission_id, asset_id, storage_key, mime_type, bytes, sha256)
-        SELECT ?, ?, ?, ?, ?, ? WHERE ${pending}`,
-      args: [input.submissionId, asset.assetId, asset.storageKey, asset.mimeType, asset.bytes, asset.sha256, input.submissionId, input.userId],
+        SELECT ?, ?, ?, ?, ?, ? WHERE ${owned}`,
+      args: [input.submissionId, asset.assetId, asset.storageKey, asset.mimeType, asset.bytes, asset.sha256, input.submissionId, input.userId, input.lessonId],
     }))];
     const updated = await database.batch(updates);
-    if (updated[0].rowsAffected !== 1) throw new HomeworkConflictError('Homework was graded while editing');
+    if (updated[0].rowsAffected !== 1) throw new HomeworkConflictError('Homework submission identity conflict');
     const saved = await getSandboxHomework(database, input.submissionId);
     if (!saved) throw new Error('Homework submission disappeared');
     return saved;

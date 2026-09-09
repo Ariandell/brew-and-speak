@@ -99,6 +99,15 @@ test('homework travels student → teacher → student without a duplicate', asy
     await expect(page.getByText('7/10')).toBeVisible();
     await expect(page.getByText('Перевірено наскрізним сценарієм.')).toBeVisible();
     await expect(page.getByText(answer)).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Виправити й надіслати повторно' })).toBeVisible();
+    const corrected = 'I corrected the homework after feedback.';
+    await page.getByRole('textbox', { name: /Твоя відповідь/ }).fill(corrected);
+    await page.getByRole('button', { name: 'Виправити й надіслати повторно' }).click();
+    await expect(page.getByRole('status')).toContainText('Роботу збережено');
+    await expect(page.getByText('7/10')).toHaveCount(0);
+    await page.goto('/?demo=teacher#/teacher/homework');
+    await page.getByRole('button', { name: /Андрій Чекає Present Perfect/ }).click();
+    await expect(page.getByText(corrected)).toBeVisible();
 });
 
 test('homework strips pasted markup and rejects unsupported files', async ({ page }) => {

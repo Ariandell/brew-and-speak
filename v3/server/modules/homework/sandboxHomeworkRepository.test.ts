@@ -55,10 +55,15 @@ test('homework answer and asset references are committed and grading is idempote
     });
     assert.equal(graded.status, 'graded');
     assert.equal(graded.grade, 9);
-    await assert.rejects(() => submitSandboxHomework(database, {
+    const resubmitted = await submitSandboxHomework(database, {
       submissionId: 'homework-1', userId: 7, lessonId: 11, answerText: 'Change after grading',
       createdAt: '2026-08-17T12:30:00.000Z', assets: [],
-    }), /Graded homework cannot be changed/);
+    });
+    assert.equal(resubmitted.status, 'pending');
+    assert.equal(resubmitted.answerText, 'Change after grading');
+    assert.equal(resubmitted.grade, null);
+    assert.equal(resubmitted.teacherComment, null);
+    assert.equal(resubmitted.gradedAt, null);
 
     const retry = await gradeSandboxHomework(database, {
       submissionId: 'homework-1',
