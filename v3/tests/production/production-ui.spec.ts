@@ -123,6 +123,7 @@ test('student answers all five scored blocks and receives the honest server scor
 });
 
 test('homework travels student → teacher grade → student through production state', async ({ browser }) => {
+  test.setTimeout(60_000);
   const answer = 'Production UI homework answer 6204';
   const student = await openAs(browser, identities.student, '/lesson/1/homework');
   await student.page.getByRole('textbox', { name: 'Відповідь' }).fill(answer);
@@ -141,6 +142,14 @@ test('homework travels student → teacher grade → student through production 
   await expect(student.page.getByText('7/10')).toBeVisible();
   await expect(student.page.getByText('Перевірено production E2E.')).toBeVisible();
   await expect(student.page.getByText(answer)).toHaveCount(1);
+  await expect(student.page.getByRole('button', { name: 'Виправити й надіслати повторно' })).toBeVisible();
+  const corrected = 'Corrected production UI homework answer 6204';
+  await student.page.getByRole('textbox', { name: /Твоя відповідь/ }).fill(corrected);
+  await student.page.getByRole('button', { name: 'Виправити й надіслати повторно' }).click();
+  await expect(student.page.getByRole('status')).toContainText('Роботу збережено');
+  await expect(student.page.getByText('7/10')).toHaveCount(0);
+  await teacher.page.reload();
+  await expect(teacher.page.getByText(corrected)).toBeVisible();
 });
 
 test('chat reply is visible only to its intended student', async ({ browser }) => {
