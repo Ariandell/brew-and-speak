@@ -39,7 +39,7 @@ export const Homework = ({ lessonId }: { lessonId: number }) => {
                 <Card className="mt-4 border-good/20 p-5">
                     <p className="font-mono text-[9px] font-black uppercase tracking-[0.18em] text-good">Відгук викладачки</p>
                     <strong className="mt-3 block text-[38px] font-black text-good">{submission.grade}/10</strong>
-                    <p className="mt-2 text-[13px] font-semibold leading-relaxed text-text-soft">{submission.comment || 'Без додаткового коментаря.'}</p>
+                    <p className="mt-2 whitespace-pre-wrap text-[13px] font-semibold leading-relaxed text-text-soft">{toPlainText(submission.comment ?? '') || 'Без додаткового коментаря.'}</p>
                     <p className="mt-3 text-[11px] font-bold leading-relaxed text-text-soft">Можна виправити відповідь нижче й надіслати роботу повторно.</p>
                 </Card>
             )}

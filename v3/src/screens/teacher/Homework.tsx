@@ -27,7 +27,7 @@ export const HomeworkReview = ({ submissionId }: { submissionId: string }) => {
     const student = state.students.find(value => value.id === item?.studentId);
     const lesson = state.lessons.find(value => value.id === item?.lessonId);
     const [grade, setGrade] = useState(item?.grade ?? 8);
-    const [comment, setComment] = useState(item?.comment ?? '');
+    const [comment, setComment] = useState(toPlainText(item?.comment ?? ''));
     const [saved, setSaved] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');

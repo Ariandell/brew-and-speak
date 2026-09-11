@@ -3,6 +3,7 @@ import { useAppState } from '../../app/AppState';
 import type { StudentTab } from '../../app/routes';
 import { Home, type HomeViewModel } from '../home/Home';
 import { isLessonOpen } from '../../app/domain';
+import { toPlainText } from '../../lib/plainText';
 
 export const HomeContainer = () => {
     const { state, navigate, markBroadcastViewed, downloadAsset } = useAppState();
@@ -25,7 +26,7 @@ export const HomeContainer = () => {
         courseTitle: course?.title ?? 'Курс не обрано',
         currentLesson: { index: current?.order ?? 0, total: lessons.length, title: current?.title ?? 'Обери свій курс', completedPercent: current?.status === 'completed' ? 100 : 0 },
         homework: submission?.status === 'graded' ? { status: 'graded', label: `${submission.grade}/10` } : submission?.status === 'pending' ? { status: 'reviewing', label: 'На перевірці' } : { status: 'to-submit', label: 'Треба здати' },
-        homeworkFeedback: latestFeedback && latestFeedback.grade !== null ? { grade: latestFeedback.grade, comment: latestFeedback.comment ?? '', lessonTitle: feedbackLesson?.title ?? 'Домашнє завдання' } : null,
+        homeworkFeedback: latestFeedback && latestFeedback.grade !== null ? { grade: latestFeedback.grade, comment: toPlainText(latestFeedback.comment ?? ''), lessonTitle: feedbackLesson?.title ?? 'Домашнє завдання' } : null,
         cardsDue: state.cards.filter(card => accessibleLessonIds.has(card.lessonId) && card.due).length,
         broadcast: broadcast ? { caption: broadcast.caption, imageName: broadcast.imageName } : null,
     }), [accessibleLessonIds, broadcast, course?.title, current, feedbackLesson?.title, latestFeedback, lessons.length, state.cards, state.currentUser.streakDays, submission]);
