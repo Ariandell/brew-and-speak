@@ -4,6 +4,7 @@ import { AsyncFeedback, asyncErrorMessage, useMountedRef } from '../../ui/AsyncF
 import { useAppState } from '../../app/AppState';
 import { teacherTabForRoute, type TeacherTab } from '../../app/routes';
 import { Icon } from '../../ui/Icon';
+import { toPlainText } from '../../lib/plainText';
 import { Button, Card, EmptyState, Field, inputClass, PageHeader, ProductPage, RichText, StatusPill } from '../../ui/ProductUI';
 import { TeacherNav } from '../../ui/TeacherNav';
 
@@ -50,8 +51,8 @@ export const HomeworkReview = ({ submissionId }: { submissionId: string }) => {
         <ProductPage>
             <PageHeader eyebrow="Перевірка роботи" title={student?.name ?? 'Учень'} description={lesson?.title} onBack={() => back({ name: 'teacher-homework' })} />
             <Card className="mt-5 p-5"><p className="font-mono text-[9px] font-black uppercase tracking-[0.18em] text-warm">Умова</p><RichText html={item.promptHtml} className="mt-3" /></Card>
-            <Card className="mt-3 p-5"><p className="font-mono text-[9px] font-black uppercase tracking-[0.18em] text-accent-deep">Відповідь учня</p><p className="mt-3 whitespace-pre-wrap text-[14px] font-semibold leading-relaxed text-text-soft">{item.answer || 'Текстової відповіді немає.'}</p>{item.assets?.map(asset => <HomeworkAttachment key={asset.assetId} assetId={asset.assetId} fileName={asset.fileName ?? asset.assetId} />)}{!item.assets?.length && item.fileName && <HomeworkAttachment assetId={item.assetId} fileName={item.fileName} />}</Card>
             <Card className="mt-3 space-y-4 p-5"><Field label="Оцінка"><input disabled={saving} type="range" min={0} max={10} value={grade} onChange={event => { setGrade(Number(event.currentTarget.value)); setSaved(false); }} className="w-full accent-accent disabled:opacity-50" /><strong className="mt-1 block text-center text-[34px] font-black text-accent">{grade}/10</strong></Field><Field label="Коментар"><textarea disabled={saving} rows={5} value={comment} onChange={event => { setComment(event.currentTarget.value); setSaved(false); }} placeholder="Що вдалося і що повторити…" className={`${inputClass} resize-none`} /></Field><Button className="w-full" disabled={saving} onClick={() => void save()}>{saving ? 'Збереження…' : saved ? 'Оцінку збережено' : 'Зберегти оцінку'}</Button><AsyncFeedback error={error} success={saved ? 'Оцінка успішно збережена.' : ''} /></Card>
+            <Card className="mt-3 p-5"><p className="font-mono text-[9px] font-black uppercase tracking-[0.18em] text-accent-deep">Відповідь учня</p><p className="mt-3 whitespace-pre-wrap text-[14px] font-semibold leading-relaxed text-text-soft">{toPlainText(item.answer) || 'Текстової відповіді немає.'}</p>{item.assets?.map(asset => <HomeworkAttachment key={asset.assetId} assetId={asset.assetId} fileName={asset.fileName ?? asset.assetId} />)}{!item.assets?.length && item.fileName && <HomeworkAttachment assetId={item.assetId} fileName={item.fileName} />}</Card>
         </ProductPage>
     );
 };

@@ -142,6 +142,10 @@ test('homework travels student → teacher grade → student through production 
   await expect(student.page.getByText('7/10')).toBeVisible();
   await expect(student.page.getByText('Перевірено production E2E.')).toBeVisible();
   await expect(student.page.getByText(answer)).toHaveCount(1);
+  await student.page.goto('/#/home');
+  await expect(student.page.getByRole('button', { name: 'Відкрити відгук до домашнього' })).toContainText('7');
+  await expect(student.page.getByRole('button', { name: 'Відкрити відгук до домашнього' })).toContainText('Перевірено production E2E.');
+  await student.page.getByRole('button', { name: 'Відкрити відгук до домашнього' }).click();
   await expect(student.page.getByRole('button', { name: 'Виправити й надіслати повторно' })).toBeVisible();
   const corrected = 'Corrected production UI homework answer 6204';
   await student.page.getByRole('textbox', { name: /Твоя відповідь/ }).fill(corrected);

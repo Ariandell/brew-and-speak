@@ -235,6 +235,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
                 grade: null,
                 comment: null,
                 submittedAt: new Date().toISOString(),
+                gradedAt: null,
             };
             return { ...current, homework: [...current.homework.filter(item => item.id !== submission.id), submission] };
         });
@@ -244,7 +245,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
         setState(current => ({
             ...current,
             homework: current.homework.map(item => item.id === submissionId
-                ? { ...item, status: 'graded', grade, comment: comment.trim() }
+                ? { ...item, status: 'graded', grade, comment: comment.trim(), gradedAt: new Date().toISOString() }
                 : item),
         }));
     }, []);

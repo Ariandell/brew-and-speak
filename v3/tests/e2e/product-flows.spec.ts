@@ -95,7 +95,10 @@ test('homework travels student → teacher → student without a duplicate', asy
     await page.getByRole('slider').fill('7');
     await page.getByRole('textbox', { name: 'Коментар' }).fill('Перевірено наскрізним сценарієм.');
     await page.getByRole('button', { name: 'Зберегти оцінку' }).click();
-    await page.goto('/?demo=student#/lesson/1/homework');
+    await page.goto('/?demo=student#/home');
+    await expect(page.getByRole('button', { name: 'Відкрити відгук до домашнього' })).toContainText('7');
+    await expect(page.getByRole('button', { name: 'Відкрити відгук до домашнього' })).toContainText('Перевірено наскрізним сценарієм.');
+    await page.getByRole('button', { name: 'Відкрити відгук до домашнього' }).click();
     await expect(page.getByText('7/10')).toBeVisible();
     await expect(page.getByText('Перевірено наскрізним сценарієм.')).toBeVisible();
     await expect(page.getByText(answer)).toHaveCount(1);

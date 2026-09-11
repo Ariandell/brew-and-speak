@@ -63,6 +63,7 @@ export interface ProductHomework {
     grade: number | null;
     comment: string | null;
     submittedAt: string | null;
+    gradedAt?: string | null;
     assets?: Array<{ assetId: string; storageKey: string; mimeType: string; bytes: number; sha256: string; fileName?: string }>;
 }
 

@@ -19,6 +19,11 @@ export interface HomeViewModel {
         status: 'to-submit' | 'reviewing' | 'graded';
         label: string;
     };
+    homeworkFeedback: {
+        grade: number;
+        comment: string;
+        lessonTitle: string;
+    } | null;
     cardsDue: number;
     broadcast: { caption: string; imageName: string } | null;
 }
@@ -28,6 +33,7 @@ interface Props {
     sceneActive?: boolean;
     onOpenLesson: () => void;
     onOpenHomework: () => void;
+    onOpenHomeworkFeedback: () => void;
     onOpenCards: () => void;
     onOpenSchedule: () => void;
     onOpenBroadcast: () => void;
@@ -47,6 +53,7 @@ export const Home = ({
     sceneActive = true,
     onOpenLesson,
     onOpenHomework,
+    onOpenHomeworkFeedback,
     onOpenCards,
     onOpenSchedule,
     onOpenBroadcast,
@@ -97,7 +104,24 @@ export const Home = ({
                     </div>
                 </header>
 
-                <div className="h-[clamp(132px,18dvh,168px)]" aria-hidden />
+                <div className="flex h-[clamp(132px,18dvh,168px)] items-end pb-3">
+                    {model.homeworkFeedback && (
+                        <button
+                            type="button"
+                            onClick={onOpenHomeworkFeedback}
+                            aria-label="Відкрити відгук до домашнього"
+                            className="glass-panel surface flex w-full items-center gap-3 rounded-[18px] border border-white/75 bg-surface/95 p-3 text-left shadow-card transition active:scale-[0.99]"
+                        >
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-good/15 text-[21px] font-black text-good">{model.homeworkFeedback.grade}</span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block font-mono text-[8px] font-black uppercase tracking-[0.16em] text-good">Відгук до домашнього</span>
+                                <strong className="mt-1 block truncate text-[12px] font-black">{model.homeworkFeedback.lessonTitle}</strong>
+                                <span className="mt-0.5 block truncate text-[10px] font-semibold text-text-soft">{model.homeworkFeedback.comment || 'Без додаткового коментаря.'}</span>
+                            </span>
+                            <Icon name="arrow" className="h-5 w-5 shrink-0 text-text-faint" />
+                        </button>
+                    )}
+                </div>
 
                 <section
                     aria-labelledby="next-lesson-title"

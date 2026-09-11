@@ -15,15 +15,20 @@ export const HomeContainer = () => {
     const accessibleLessonIds = useMemo(() => new Set(lessons.filter(item => item.status !== 'locked').map(item => item.id)), [lessons]);
     const current = lessons.find(item => item.status !== 'completed' && isLessonOpen(item)) ?? lessons.find(item => item.status === 'completed' && isLessonOpen(item)) ?? lessons.find(item => item.status === 'locked') ?? lessons[0];
     const submission = current ? state.homework.find(item => item.studentId === state.currentUser.id && item.lessonId === current.id) : undefined;
+    const latestFeedback = [...state.homework]
+        .filter(item => item.studentId === state.currentUser.id && item.status === 'graded' && lessons.some(lesson => lesson.id === item.lessonId))
+        .sort((left, right) => Date.parse(right.gradedAt ?? right.submittedAt ?? '') - Date.parse(left.gradedAt ?? left.submittedAt ?? ''))[0];
+    const feedbackLesson = lessons.find(item => item.id === latestFeedback?.lessonId);
     const broadcast = state.broadcasts.find(item => Date.parse(item.scheduledAt) <= Date.now() && !item.viewedBy.includes(state.currentUser.id));
     const model = useMemo<HomeViewModel>(() => ({
         streakDays: state.currentUser.streakDays,
         courseTitle: course?.title ?? 'Курс не обрано',
         currentLesson: { index: current?.order ?? 0, total: lessons.length, title: current?.title ?? 'Обери свій курс', completedPercent: current?.status === 'completed' ? 100 : 0 },
         homework: submission?.status === 'graded' ? { status: 'graded', label: `${submission.grade}/10` } : submission?.status === 'pending' ? { status: 'reviewing', label: 'На перевірці' } : { status: 'to-submit', label: 'Треба здати' },
+        homeworkFeedback: latestFeedback && latestFeedback.grade !== null ? { grade: latestFeedback.grade, comment: latestFeedback.comment ?? '', lessonTitle: feedbackLesson?.title ?? 'Домашнє завдання' } : null,
         cardsDue: state.cards.filter(card => accessibleLessonIds.has(card.lessonId) && card.due).length,
         broadcast: broadcast ? { caption: broadcast.caption, imageName: broadcast.imageName } : null,
-    }), [accessibleLessonIds, broadcast, course?.title, current, lessons.length, state.cards, state.currentUser.streakDays, submission]);
+    }), [accessibleLessonIds, broadcast, course?.title, current, feedbackLesson?.title, latestFeedback, lessons.length, state.cards, state.currentUser.streakDays, submission]);
     const nav = (tab: StudentTab) => navigate({ name: tab });
     useEffect(() => {
         if (!openedBroadcast?.assetId) return;
@@ -43,7 +48,7 @@ export const HomeContainer = () => {
         });
     };
     return <>
-        <Home model={model} onOpenLesson={() => current ? navigate({ name: 'lesson', lessonId: current.id }) : navigate({ name: 'course-select' })} onOpenHomework={() => current && navigate({ name: 'homework', lessonId: current.id })} onOpenCards={() => navigate({ name: 'cards' })} onOpenSchedule={() => navigate({ name: 'schedule' })} onOpenBroadcast={openBroadcast} onNavigate={nav} />
+        <Home model={model} onOpenLesson={() => current ? navigate({ name: 'lesson', lessonId: current.id }) : navigate({ name: 'course-select' })} onOpenHomework={() => current && navigate({ name: 'homework', lessonId: current.id })} onOpenHomeworkFeedback={() => latestFeedback && navigate({ name: 'homework', lessonId: latestFeedback.lessonId })} onOpenCards={() => navigate({ name: 'cards' })} onOpenSchedule={() => navigate({ name: 'schedule' })} onOpenBroadcast={openBroadcast} onNavigate={nav} />
         {openedBroadcast && <div role="dialog" aria-modal="true" aria-label="Повідомлення викладачки" className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0f1b33]/60 p-5 backdrop-blur-md">
             <div className="w-full max-w-[390px] overflow-hidden rounded-[26px] border border-white/70 bg-surface p-4 shadow-panel">
                 <div className="flex items-center justify-between"><strong className="text-[15px] font-black">Повідомлення викладачки</strong><button type="button" onClick={() => setOpenedBroadcast(null)} aria-label="Закрити" className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-tint font-black text-accent">×</button></div>
